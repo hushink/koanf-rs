@@ -39,6 +39,8 @@ jobs:
           cargo check -p koanf-core --no-default-features --locked \
             --target thumbv7em-none-eabihf
           cargo check -p koanf-rs --locked --target wasm32-unknown-unknown
+          cargo check -p koanf-rs --locked --target wasm32-unknown-unknown \
+            --no-default-features --features json,toml,yaml,derive
       - name: Check whether the crates exist on crates.io
         id: crates
         run: |
