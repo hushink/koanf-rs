@@ -85,7 +85,7 @@ jobs:
             exit 1
           fi
       - name: Bootstrap initial release
-        uses: release-plz/action@1fb72a9583c3601c197b3bd6fc6ce50d58e28ef3 # v0.5.148
+        uses: release-plz/action@66b324fd6c72d05d2a08568492ecdd62bfb8a62b # v0.5.148
         with:
           command: release
         env:
@@ -114,7 +114,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Release with trusted publishing
-        uses: release-plz/action@1fb72a9583c3601c197b3bd6fc6ce50d58e28ef3 # v0.5.148
+        uses: release-plz/action@66b324fd6c72d05d2a08568492ecdd62bfb8a62b # v0.5.148
         with:
           command: release
         env:
@@ -139,7 +139,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
-        uses: release-plz/action@1fb72a9583c3601c197b3bd6fc6ce50d58e28ef3 # v0.5.148
+        uses: release-plz/action@66b324fd6c72d05d2a08568492ecdd62bfb8a62b # v0.5.148
         with:
           command: release-pr
         env:
