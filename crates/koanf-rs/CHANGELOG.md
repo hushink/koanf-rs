@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0](https://github.com/hushink/koanf-rs/releases/tag/koanf-rs-v0.1.0) - 2026-11-20
+## [0.1.0](https://github.com/hushink/koanf-rs/releases/tag/koanf-rs-v0.1.0) - 2026-11-21
 
 ### Added
 
-- implement koanf-rs layered configuration library
+- layered configuration facade with `Memory`/`ConfMap`, `Structs`, `Bytes`,
+  `File`, `dir::Dir`, `Env`, `Args`, and HTTP(S) sources
+- JSON, TOML, and YAML formats, plus optional dotenv and INI parsers
+- deterministic directory layering with optional recursive traversal and watch
+- conditional HTTP(S) requests with compression and polling watch
+- snapshot and section rendering back to JSON, TOML, and YAML
+- file and directory watching, async watch streams, and compile-time
+  `Watchable` enforcement

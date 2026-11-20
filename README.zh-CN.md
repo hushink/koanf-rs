@@ -7,13 +7,15 @@
 受 Go 语言 [koanf](https://github.com/knadh/koanf) 启发的 Rust 分层配置库。
 这是**独立的 Rust 实现**，不是官方移植版本。
 
-- 多配置源：内存、类型化默认值、文件与目录、环境变量、命令行参数、内联字节。
+- 多配置源：内存、类型化默认值、文件与目录、环境变量、命令行参数、内联
+  字节、HTTP(S)。
 - 多格式：JSON、TOML、YAML，可选 dotenv 与 INI。
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
   路径作用域的 `Section` 视图。
 - 不可变、`Arc` 支撑的快照，保证多键读取的一致性。
-- 文件监听：全量重建、变更集、失败时保留最后一个可用快照。
+- 文件与目录监听：全量重建、变更集、失败时保留最后一个可用快照。
+- 快照与 `Section` 可渲染回 JSON、TOML、YAML。
 - 编译期约束：只有 `Watchable` 源才能注册到 watch 流程。
 - 可扩展的 `Source` / `Format` / `Watchable` trait。
 - 库自身不使用 `unsafe`。
@@ -306,11 +308,11 @@ let config = Config::builder().watched(source).build()?;
 
 ## 状态
 
-v0.1 聚焦本地源、多种格式、类型化读取与监听。
+v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
-v1 不包含：远程源（S3/etcd/consul/vault）、glob 模式源、async 配置源适配、
-derive schema 宏、验证框架、写入文件辅助 API、`no_std`/WASM、动态层删除、
-敏感值脱敏。
+v1 不包含：HTTP(S) 之外的远程源（S3/etcd/consul/vault）、glob 模式源、
+async 配置源适配、derive schema 宏、验证框架、写入文件辅助 API、
+`no_std`/WASM、动态层删除、敏感值脱敏。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

@@ -41,7 +41,8 @@
 //! # Features
 //!
 //! The default features enable `json`, `toml`, `yaml`, `file`, `env`, `args`,
-//! and `watch`. The optional `dotenv` and `ini` features add those parsers.
+//! and `watch`. The optional `dotenv` and `ini` features add those parsers,
+//! `async` adds the watch stream, and `http` adds the HTTP(S) source.
 //! `memory`, `structs`, `confmap`, and `bytes` are always available. Use
 //! `default-features = false` for a minimal core.
 //!

@@ -12,14 +12,20 @@ Initial release.
 ### Added
 
 - Layered configuration with deterministic precedence and atomic rebuilds.
-- Ordered `Value`/`Map` model with JSON, TOML, and YAML formats.
+- Ordered `Value`/`Map` model with JSON, TOML, and YAML formats, plus optional
+  dotenv and INI parsers.
 - Typed serde access: `deserialize`, `get`, `get_opt`, `get_or`, and
   `Section` views.
+- Numeric array-index reads such as `servers.0.host`.
 - Type-directed scalar coercion with a strict opt-out.
 - Sources: `Memory`/`ConfMap`, `Structs` (typed defaults), `Bytes`, `File`,
-  `Env`, and `Args`.
+  `dir::Dir`, `Env`, `Args`, and conditional HTTP(S).
+- Directory sources with deterministic filename layering and optional
+  recursive traversal.
 - Runtime overrides via `set`/`delete` that survive `reload`.
-- File watching with full rebuilds, change sets, and last-known-good snapshots.
+- File and directory watching with full rebuilds, change sets, and
+  last-known-good snapshots, including a runtime-agnostic async stream.
+- Snapshot and section rendering back to JSON, TOML, and YAML.
 - `Source`, `Format`, and `Watchable` extension traits.
 - Feature-gated facade with `koanf-core` as the extension-facing engine.
 - Bilingual README, examples, CI, and Apache-2.0 licensing.

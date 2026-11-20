@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0](https://github.com/hushink/koanf-rs/releases/tag/koanf-core-v0.1.0) - 2026-11-20
+## [0.1.0](https://github.com/hushink/koanf-rs/releases/tag/koanf-core-v0.1.0) - 2026-11-21
 
 ### Added
 
-- implement koanf-rs layered configuration library
+- layered configuration engine with immutable snapshots and atomic rebuilds
+- ordered `Value`/`Map`, dotted paths, merge options, and change sets
+- typed serde access, sections, and type-directed scalar coercion
+- numeric array-index reads and `Error::InvalidIndex`
+- runtime overrides, watch callbacks/channels, and a runtime-agnostic async
+  watch stream
+- snapshot and section rendering through the `Format` trait
 
 ### Fixed
 

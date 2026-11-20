@@ -9,14 +9,16 @@ A layered configuration library for Rust, inspired by Go's
 implementation**, not an official port.
 
 - Multiple sources: memory, typed defaults, files and directories, environment
-  variables, CLI arguments, and inline bytes.
+  variables, CLI arguments, inline bytes, and HTTP(S).
 - Multiple formats: JSON, TOML, and YAML, with optional dotenv and INI.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
 - Typed access through serde: `deserialize::<T>()`, `get::<T>(path)`, and
   path-scoped `Section` views.
 - Immutable, `Arc`-backed snapshots for consistent multi-key reads.
-- File watching with full rebuilds, change sets, and last-known-good snapshots.
+- File and directory watching with full rebuilds, change sets, and
+  last-known-good snapshots.
+- Snapshot and section rendering back to JSON, TOML, or YAML.
 - Compile-time enforcement that only `Watchable` sources can be watched.
 - Extension traits for custom sources, formats, and watch backends.
 - The library crates forbid `unsafe` code.
@@ -317,11 +319,12 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 ## Status
 
-v0.1 focuses on local sources, multiple formats, typed access, and watching.
+v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
-Not in v1: remote sources (S3/etcd/consul/vault), glob-pattern sources, async
-adapters, a derive schema macro, validation hooks, save-to-file helpers,
-`no_std`/WASM, dynamic layer removal, or secret redaction.
+Not in v1: remote sources other than HTTP(S) (S3/etcd/consul/vault),
+glob-pattern sources, async source adapters, a derive schema macro, validation
+hooks, save-to-file helpers, `no_std`/WASM, dynamic layer removal, or secret
+redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 
