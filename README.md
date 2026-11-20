@@ -24,6 +24,7 @@ implementation**, not an official port.
 - Path-based debug redaction for secrets and watch/change output.
 - Optional `tracing` instrumentation for reloads, source changes, and watch errors.
 - Runtime-agnostic async source loading via `AsyncSource` and `build_async`.
+- Optional atomic file saves for rendered configuration.
 - Compile-time enforcement that only `Watchable` sources can be watched.
 - Extension traits for custom sources, formats, and watch backends.
 - The library crates forbid `unsafe` code.
@@ -239,6 +240,11 @@ type, so rendering a snapshot containing `Value::Null` returns `Error::Render`.
 step. Rendering completes before the file is touched, so format errors leave the
 target unchanged; the write itself truncates or creates the target.
 
+With the optional `atomic-save` feature, `save_atomic` writes to a temporary
+file in the target directory and renames it over the destination. Existing
+permissions are preserved. This avoids exposing a partially written file to
+readers and file watchers.
+
 ## Watch
 
 ```rust
@@ -419,6 +425,7 @@ coercion applies when a numeric or boolean target is requested.
 | `watch` | yes | File and directory watching via `notify`; implies `file` |
 | `async` | no | `Config::watch_stream` / `WatchStream`; `AsyncSource` is always available |
 | `tracing` | no | `tracing` debug/warn instrumentation in `koanf-core` |
+| `atomic-save` | no | `save_atomic` helpers using a same-directory temp file |
 | `http` | no | `http::Http`, reqwest + rustls; polling watch |
 | `consul` | no | `consul::Consul`, reqwest + base64; polling watch |
 | `vault` | no | `vault::Vault`, KV v1/v2; polling watch |

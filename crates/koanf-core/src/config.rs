@@ -2,6 +2,8 @@
 
 use std::fmt;
 use std::fs;
+#[cfg(feature = "atomic-save")]
+use std::io::Write;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path as StdPath;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -277,6 +279,18 @@ impl Snapshot {
         save_value(path.as_ref(), &self.inner.value, format)
     }
 
+    /// Renders the root object and atomically replaces `path`.
+    ///
+    /// Enabled by the `atomic-save` feature. Rendering completes before the
+    /// target is touched. The rendered bytes are written to a temporary file in
+    /// the same directory, flushed, and renamed over the target. Existing target
+    /// permissions are preserved; a newly created file uses the platform's
+    /// temporary-file permissions.
+    #[cfg(feature = "atomic-save")]
+    pub fn save_atomic(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
+        save_value_atomic(path.as_ref(), &self.inner.value, format)
+    }
+
     /// Computes the changes between two snapshots.
     pub fn diff(&self, other: &Snapshot) -> ChangeSet {
         ChangeSet::diff_redacted(
@@ -423,6 +437,14 @@ impl Section {
     /// creates or truncates the target.
     pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
         save_value(path.as_ref(), self.as_value(), format)
+    }
+
+    /// Renders this section's object and atomically replaces `path`.
+    ///
+    /// See [`Snapshot::save_atomic`] for the write semantics.
+    #[cfg(feature = "atomic-save")]
+    pub fn save_atomic(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
+        save_value_atomic(path.as_ref(), self.as_value(), format)
     }
 }
 
@@ -752,6 +774,14 @@ impl Config {
     /// See [`Snapshot::save`] for the write semantics.
     pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
         self.snapshot().save(path, format)
+    }
+
+    /// Renders the current snapshot and atomically replaces `path`.
+    ///
+    /// See [`Snapshot::save_atomic`] for the write semantics.
+    #[cfg(feature = "atomic-save")]
+    pub fn save_atomic(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
+        self.snapshot().save_atomic(path, format)
     }
 
     /// Appends a plain source layer and rebuilds.
@@ -1508,6 +1538,35 @@ fn save_value(path: &StdPath, value: &Value, format: &dyn Format) -> Result<()> 
         path: path.to_path_buf(),
         source,
     })
+}
+
+#[cfg(feature = "atomic-save")]
+fn save_value_atomic(path: &StdPath, value: &Value, format: &dyn Format) -> Result<()> {
+    let bytes = format.render(value)?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| StdPath::new("."));
+    let mut temp = tempfile::NamedTempFile::new_in(parent).map_err(|source| Error::Io {
+        path: parent.to_path_buf(),
+        source,
+    })?;
+    temp.write_all(&bytes).map_err(|source| Error::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    temp.as_file().sync_all().map_err(|source| Error::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    if let Ok(metadata) = fs::metadata(path) {
+        let _ = temp.as_file().set_permissions(metadata.permissions());
+    }
+    temp.persist(path).map_err(|error| Error::Io {
+        path: path.to_path_buf(),
+        source: error.error,
+    })?;
+    Ok(())
 }
 
 fn stop_watch_subscriptions(watch: &mut WatchState, removed: &[Arc<dyn Watchable>]) {

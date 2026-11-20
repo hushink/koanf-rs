@@ -29,3 +29,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - path-based debug redaction for configuration values
 - optional `tracing` instrumentation
 - async source loading via the re-exported core API
+- optional atomic save helpers via the `atomic-save` feature

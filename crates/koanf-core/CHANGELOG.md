@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - path-based debug redaction for config, snapshot, section, change set, and watch output
 - optional `tracing` instrumentation
 - async source loading with `AsyncSource`, `build_async`, and `load_async`
+- optional atomic save helpers via the `atomic-save` feature
 - snapshot and section rendering through the `Format` trait, including save
   helpers
 

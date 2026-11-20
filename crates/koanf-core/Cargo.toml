@@ -19,10 +19,12 @@ indexmap.workspace = true
 futures-core = { workspace = true, optional = true }
 futures-channel = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 
 [features]
 async = ["dep:futures-core", "dep:futures-channel"]
 tracing = ["dep:tracing"]
+atomic-save = ["dep:tempfile"]
 
 [dev-dependencies]
 serde_json.workspace = true

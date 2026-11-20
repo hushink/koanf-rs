@@ -20,6 +20,7 @@
 - 基于路径的 Debug 脱敏，覆盖 watch/变更输出。
 - 可选的 `tracing` 埋点，覆盖 reload、源变更和 watch 错误。
 - 运行时无关的异步源加载：`AsyncSource`、`build_async`。
+- 可选的原子文件保存。
 - 编译期约束：只有 `Watchable` 源才能注册到 watch 流程。
 - 可扩展的 `Source` / `Format` / `Watchable` trait。
 - 库自身不使用 `unsafe`。
@@ -227,6 +228,10 @@ let server_yaml = config.section("server")?.render(&Yaml)?;
 渲染在触碰文件之前完成，因此格式错误不会改变目标文件；写入本身会创建或截断
 目标文件。
 
+启用可选 `atomic-save` feature 后，`save_atomic` 会先写入目标目录内的临时
+文件，再重命名覆盖目标，并保留已有文件权限。这样读者和文件 watcher 不会看到
+写入一半的文件。
+
 ## Watch
 
 ```rust
@@ -400,6 +405,7 @@ let config = Config::builder().watched(source).build()?;
 | `watch` | 是 | 通过 `notify` 监听文件与目录；隐含 `file` |
 | `async` | 否 | `Config::watch_stream` / `WatchStream`；`AsyncSource` 始终可用 |
 | `tracing` | 否 | `koanf-core` 中的 `tracing` debug/warn 埋点 |
+| `atomic-save` | 否 | 基于同目录临时文件的 `save_atomic` |
 | `http` | 否 | `http::Http`，reqwest + rustls；轮询 watch |
 | `consul` | 否 | `consul::Consul`，reqwest + base64；轮询 watch |
 | `vault` | 否 | `vault::Vault`，KV v1/v2；轮询 watch |

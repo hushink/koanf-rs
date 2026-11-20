@@ -976,6 +976,29 @@ mod render_tests {
         assert!(!loaded.contains("server"));
     }
 
+    #[cfg(all(feature = "atomic-save", feature = "json", feature = "toml"))]
+    #[test]
+    fn atomic_save_replaces_files_and_preserves_on_errors() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json");
+        let config = sample_config();
+
+        config.save_atomic(&path, &koanf_rs::format::Json).unwrap();
+        let content = std::fs::read(&path).unwrap();
+        let loaded = Config::builder()
+            .source(Bytes::new(&content, koanf_rs::format::Json))
+            .build()
+            .unwrap();
+        assert_eq!(loaded.get::<u16>("server.port").unwrap(), 8080);
+
+        config.set("server.optional", Value::Null).unwrap();
+        assert!(matches!(
+            config.save_atomic(&path, &koanf_rs::format::Toml),
+            Err(Error::Render { .. })
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), content);
+    }
+
     #[cfg(feature = "toml")]
     #[test]
     fn save_failures_leave_the_target_untouched() {
