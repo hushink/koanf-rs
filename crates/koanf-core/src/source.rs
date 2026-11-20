@@ -66,5 +66,9 @@ pub trait Watchable: Source {
 /// A handle to an active source watcher.
 pub trait WatchSubscription: Send + Sync {
     /// Stops the watcher and releases its resources.
+    ///
+    /// Implementations must not wait on the configuration dispatcher or on a
+    /// user callback thread; this is called while subscription state is being
+    /// updated.
     fn stop(self: Box<Self>);
 }

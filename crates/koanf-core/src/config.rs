@@ -515,7 +515,9 @@ impl Config {
 
     /// Sets a runtime override at `path`.
     ///
-    /// Overrides form the highest-priority layer and survive `reload`.
+    /// Overrides form the highest-priority layer and survive `reload`. The
+    /// override is merged into the most recently loaded source values; call
+    /// [`Self::reload`] first to observe external file/environment changes.
     pub fn set<P, V>(&self, path: P, value: V) -> Result<()>
     where
         P: IntoPath,
@@ -528,7 +530,9 @@ impl Config {
     ///
     /// This removes the override from the overlay; values from source layers
     /// become visible again. Use [`Self::set`] with `Value::Null` to mask a
-    /// lower-layer value.
+    /// lower-layer value. Like [`Self::set`], this uses the most recently
+    /// loaded source values; call [`Self::reload`] first to observe external
+    /// changes.
     pub fn delete(&self, path: impl IntoPath) -> Result<()> {
         self.inner.delete(path.into_path())
     }
