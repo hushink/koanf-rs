@@ -1574,8 +1574,12 @@ impl ConfigInner {
                 .map(|(id, sender)| (*id, sender.clone()))
                 .collect::<Vec<_>>()
         };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
         eprintln!(
-            "koanf broadcast callbacks={} channels={}",
+            "koanf broadcast callbacks={} channels={} at {now}",
             callbacks.len(),
             channels.len()
         );
@@ -1629,7 +1633,11 @@ impl ConfigInner {
 #[cfg(feature = "std")]
 fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>) {
     while let Ok(command) = receiver.recv() {
-        eprintln!("koanf dispatch command received");
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        eprintln!("koanf dispatch command received at {now}");
         let Some(inner) = inner.upgrade() else {
             break;
         };
@@ -1661,7 +1669,11 @@ fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>
 #[cfg(feature = "std")]
 fn watch_callback(sender: Sender<DispatchCommand>) -> WatchCallback {
     Arc::new(move |signal| {
-        eprintln!("koanf watch signal received");
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        eprintln!("koanf watch signal received at {now}");
         let command = match signal {
             WatchSignal::Changed => DispatchCommand::SourceChanged,
             WatchSignal::Error(error) => DispatchCommand::SourceError(error),
