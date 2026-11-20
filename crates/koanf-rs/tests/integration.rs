@@ -529,13 +529,16 @@ mod dir_tests {
         F: Fn(&WatchEvent) -> bool,
     {
         let deadline = Instant::now() + Duration::from_secs(10);
+        let mut seen = Vec::new();
         loop {
             let remaining = deadline.saturating_duration_since(Instant::now());
             assert!(!remaining.is_zero(), "timed out waiting for watch event");
             match receiver.recv_timeout(remaining) {
                 Ok(event) if predicate(&event) => return event,
-                Ok(_) => {}
-                Err(error) => panic!("failed waiting for watch event: {error}"),
+                Ok(event) => seen.push(format!("{event:?}")),
+                Err(error) => {
+                    panic!("failed waiting for watch event: {error}; observed: {seen:#?}")
+                }
             }
         }
     }
@@ -775,13 +778,16 @@ mod watch_tests {
         F: Fn(&WatchEvent) -> bool,
     {
         let deadline = Instant::now() + Duration::from_secs(10);
+        let mut seen = Vec::new();
         loop {
             let remaining = deadline.saturating_duration_since(Instant::now());
             assert!(!remaining.is_zero(), "timed out waiting for watch event");
             match receiver.recv_timeout(remaining) {
                 Ok(event) if predicate(&event) => return event,
-                Ok(_) => {}
-                Err(error) => panic!("failed waiting for watch event: {error}"),
+                Ok(event) => seen.push(format!("{event:?}")),
+                Err(error) => {
+                    panic!("failed waiting for watch event: {error}; observed: {seen:#?}")
+                }
             }
         }
     }
