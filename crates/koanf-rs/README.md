@@ -251,6 +251,8 @@ Not in v1: remote sources (HTTP/S3/etcd/consul/vault), multi-file/glob sources,
 async adapters, a derive schema macro, validation hooks, render/save APIs,
 `no_std`/WASM, array-index paths, dynamic layer removal, or secret redaction.
 
+Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
+
 ## MSRV
 
 Rust 1.92 (edition 2024).

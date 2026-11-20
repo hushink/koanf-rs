@@ -243,6 +243,8 @@ v1 不包含：远程源（HTTP/S3/etcd/consul/vault）、多文件/glob、async
 derive schema 宏、验证框架、render/save API、`no_std`/WASM、数组索引路径、
 动态层删除、敏感值脱敏。
 
+发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
+
 ## MSRV
 
 Rust 1.92（edition 2024）。

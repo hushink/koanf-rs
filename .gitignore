@@ -1,6 +1,7 @@
 /target
 /target-*
 /.idea/
+/.schema/
 /.venv/
 /dist/
 /sys1.toml

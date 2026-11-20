@@ -1,0 +1,23 @@
+[workspace]
+allow_dirty = false
+changelog_update = true
+dependencies_update = false
+git_release_enable = true
+git_tag_enable = true
+pr_branch_prefix = "release-plz-"
+publish = true
+publish_timeout = "30m"
+release = true
+release_always = true
+repo_url = "https://github.com/hushink/koanf-rs"
+semver_check = true
+
+# Keep the facade and the core crate on the same version. release-plz also
+# updates the facade's path/version dependency on koanf-core.
+[[package]]
+name = "koanf-core"
+version_group = "koanf"
+
+[[package]]
+name = "koanf-rs"
+version_group = "koanf"
