@@ -19,6 +19,7 @@ implementation**, not an official port.
 - File and directory watching with full rebuilds, change sets, and
   last-known-good snapshots.
 - Snapshot and section rendering back to JSON, TOML, or YAML.
+- Configurable snapshot validation hooks.
 - Compile-time enforcement that only `Watchable` sources can be watched.
 - Extension traits for custom sources, formats, and watch backends.
 - The library crates forbid `unsafe` code.
@@ -151,6 +152,44 @@ Missing paths and explicit `null` values are distinct:
 let database = config.section("database")?;
 let url: String = database.get("url")?;
 ```
+
+### Removing layers
+
+`source_names` lists registered layers and `remove_source` removes every layer
+whose source name matches. Watchers for removed layers stop, runtime overrides
+are retained, and the snapshot is rebuilt:
+
+```rust
+let names = config.source_names();
+let removed = config.remove_source("memory")?;
+```
+
+Source names are not guaranteed to be unique, so all matching layers are
+removed.
+
+### Validation
+
+Install a validator to check every new snapshot. Rejected changes are not
+committed; watch-triggered failures keep the last good snapshot and emit
+`WatchEvent::Error`:
+
+```rust
+use koanf_rs::{Config, Error};
+
+let config = Config::builder()
+    .source(File::new("config.toml"))
+    .validate(|snapshot| {
+        let port: u16 = snapshot.get("server.port")?;
+        if port == 0 {
+            return Err(Error::validation("server.port must be non-zero"));
+        }
+        Ok(())
+    })
+    .build()?;
+```
+
+Validators receive an immutable `Snapshot` and must not call mutating methods
+on the same `Config`.
 
 ### Rendering
 
@@ -293,6 +332,7 @@ extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.
 
 - **Precedence**: sources are merged in registration order; later sources win.
   Runtime overrides (`set` / `delete`) always apply last and survive `reload`.
+  Layers can be appended at runtime or removed by source name.
 - **Merge**: objects merge deeply; scalars replace; arrays replace by default.
   `MergeOptions` can append/prepend arrays and delete/ignore nulls.
 - **Coercion**: by default, string values convert to numeric or boolean target
@@ -322,9 +362,8 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
 Not in v1: remote sources other than HTTP(S) (S3/etcd/consul/vault),
-glob-pattern sources, async source adapters, a derive schema macro, validation
-hooks, save-to-file helpers, `no_std`/WASM, dynamic layer removal, or secret
-redaction.
+glob-pattern sources, async source adapters, a derive schema macro,
+save-to-file helpers, `no_std`/WASM, or secret redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 

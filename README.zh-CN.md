@@ -16,6 +16,7 @@
 - 不可变、`Arc` 支撑的快照，保证多键读取的一致性。
 - 文件与目录监听：全量重建、变更集、失败时保留最后一个可用快照。
 - 快照与 `Section` 可渲染回 JSON、TOML、YAML。
+- 可配置的快照验证钩子。
 - 编译期约束：只有 `Watchable` 源才能注册到 watch 流程。
 - 可扩展的 `Source` / `Format` / `Watchable` trait。
 - 库自身不使用 `unsafe`。
@@ -147,6 +148,40 @@ let fallback: u16 = config.get_or("server.port", 8080)?;
 let database = config.section("database")?;
 let url: String = database.get("url")?;
 ```
+
+### 删除层
+
+`source_names` 列出当前层，`remove_source` 会删除名称匹配的所有层。被删除层的
+watcher 会停止，运行时覆盖会保留，快照会重新构建：
+
+```rust
+let names = config.source_names();
+let removed = config.remove_source("memory")?;
+```
+
+源名称不保证唯一，因此会删除所有同名层。
+
+### 验证
+
+注册验证器检查每次生成的新快照。被拒绝的变更不会提交；watch 触发的失败会保留
+上一个可用快照并推送 `WatchEvent::Error`：
+
+```rust
+use koanf_rs::{Config, Error};
+
+let config = Config::builder()
+    .source(File::new("config.toml"))
+    .validate(|snapshot| {
+        let port: u16 = snapshot.get("server.port")?;
+        if port == 0 {
+            return Err(Error::validation("server.port must be non-zero"));
+        }
+        Ok(())
+    })
+    .build()?;
+```
+
+验证器只能读取传入的不可变 `Snapshot`，不得在同一个 `Config` 上调用变更方法。
 
 ### 渲染
 
@@ -284,7 +319,7 @@ let config = Config::builder().watched(source).build()?;
 ## 语义
 
 - **优先级**：按注册顺序合并，后者覆盖前者。运行时覆盖（`set` / `delete`）
-  永远最后应用，并在 `reload` 后保留。
+  永远最后应用，并在 `reload` 后保留。层可以在运行时追加，或按源名称删除。
 - **合并**：对象深度递归合并；标量覆盖；数组默认整体替换。`MergeOptions` 可
   配置数组追加/前插与 null 删除/忽略。
 - **类型转换**：默认情况下，字符串值在目标类型要求数值/布尔时转换
@@ -311,8 +346,8 @@ let config = Config::builder().watched(source).build()?;
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
 v1 不包含：HTTP(S) 之外的远程源（S3/etcd/consul/vault）、glob 模式源、
-async 配置源适配、derive schema 宏、验证框架、写入文件辅助 API、
-`no_std`/WASM、动态层删除、敏感值脱敏。
+async 配置源适配、derive schema 宏、写入文件辅助 API、`no_std`/WASM、
+敏感值脱敏。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

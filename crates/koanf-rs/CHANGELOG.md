@@ -19,3 +19,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - snapshot and section rendering back to JSON, TOML, and YAML
 - file and directory watching, async watch streams, and compile-time
   `Watchable` enforcement
+- runtime source inspection and removal
+- snapshot validation hooks

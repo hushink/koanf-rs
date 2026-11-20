@@ -96,6 +96,11 @@ pub enum Error {
         /// Error message.
         message: String,
     },
+    /// A user-supplied configuration validator rejected a snapshot.
+    Validation {
+        /// Validation failure message.
+        message: String,
+    },
     /// A format failed to render a configuration value back to bytes.
     Render {
         /// Format name, for example `"json"`.
@@ -177,6 +182,13 @@ impl Error {
             source: Box::new(source),
         }
     }
+
+    /// Creates an [`Error::Validation`] with a message.
+    pub fn validation(message: impl Into<String>) -> Self {
+        Self::Validation {
+            message: message.into(),
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -244,6 +256,9 @@ impl fmt::Display for Error {
             }
             Self::Render { format, source } => {
                 write!(f, "failed to render format `{format}`: {source}")
+            }
+            Self::Validation { message } => {
+                write!(f, "configuration validation failed: {message}")
             }
             Self::InvalidPath { input, reason } => {
                 write!(f, "invalid path `{input}`: {reason}")

@@ -357,11 +357,14 @@ impl fmt::Debug for Section {
     }
 }
 
+type Validator = Arc<dyn Fn(&Snapshot) -> Result<()> + Send + Sync>;
+
 /// Builder for a [`Config`].
 pub struct ConfigBuilder {
     layers: Vec<Layer>,
     merge: MergeOptions,
     coercion: Coercion,
+    validation: Option<Validator>,
 }
 
 impl Default for ConfigBuilder {
@@ -377,6 +380,7 @@ impl ConfigBuilder {
             layers: Vec::new(),
             merge: MergeOptions::default(),
             coercion: Coercion::default(),
+            validation: None,
         }
     }
 
@@ -436,14 +440,50 @@ impl ConfigBuilder {
         self
     }
 
+    /// Installs a validator that runs against every new snapshot.
+    ///
+    /// Validation runs during construction, `reload`, source loading/removal,
+    /// runtime overrides, and watch-triggered rebuilds. A rejected snapshot is
+    /// never committed; watch-triggered failures are reported as
+    /// [`WatchEvent::Error`] while the last good snapshot remains visible.
+    ///
+    /// The validator receives an immutable [`Snapshot`] and must not call
+    /// mutating methods on the same `Config` (doing so would deadlock).
+    ///
+    /// ```no_run
+    /// use koanf_core::{Config, Error};
+    ///
+    /// let config = Config::builder()
+    ///     .validate(|snapshot| {
+    ///         let port: u16 = snapshot.get_or("port", 8080)?;
+    ///         if port == 0 {
+    ///             return Err(Error::validation("port must be non-zero"));
+    ///         }
+    ///         Ok(())
+    ///     })
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn validate<F>(mut self, validator: F) -> Self
+    where
+        F: Fn(&Snapshot) -> Result<()> + Send + Sync + 'static,
+    {
+        self.validation = Some(Arc::new(validator));
+        self
+    }
+
     /// Loads all sources and builds the configuration.
     ///
-    /// This is eager and fails if any source cannot be read or parsed.
+    /// This is eager and fails if any source cannot be read or parsed, or if
+    /// the configured validator rejects the result.
     pub fn build(self) -> Result<Config> {
         let sources_value = load_sources(&self.layers, &self.merge)?;
         let overlay = Map::new();
         let merged = apply_overlay(&sources_value, &overlay, &self.merge)?;
         let snapshot = Snapshot::from_parts(merged, self.coercion);
+        if let Some(validation) = &self.validation {
+            validation(&snapshot)?;
+        }
         let inner = ConfigInner::new(
             self.layers,
             overlay,
@@ -451,6 +491,7 @@ impl ConfigBuilder {
             snapshot,
             self.merge,
             self.coercion,
+            self.validation,
         );
         Ok(Config {
             inner: Arc::new(inner),
@@ -521,6 +562,14 @@ impl Config {
         self.snapshot().contains(path)
     }
 
+    /// Runs the configured validator against the current snapshot.
+    ///
+    /// This is useful when the validator has side effects or when a caller
+    /// wants to re-check the current state after external changes.
+    pub fn validate(&self) -> Result<()> {
+        self.inner.validate(&self.snapshot())
+    }
+
     /// Renders the root object from the current snapshot with `format`.
     pub fn render(&self, format: &dyn Format) -> Result<Vec<u8>> {
         self.snapshot().render(format)
@@ -543,6 +592,28 @@ impl Config {
         W: Watchable + 'static,
     {
         self.inner.load_layer(Layer::watched(source))
+    }
+
+    /// Returns the names of the registered source layers, lowest priority
+    /// first.
+    ///
+    /// Names come from [`Source::name`] and are not guaranteed to be unique.
+    pub fn source_names(&self) -> Vec<String> {
+        self.inner
+            .read_state()
+            .layers
+            .iter()
+            .map(|layer| layer.source.name().to_owned())
+            .collect()
+    }
+
+    /// Removes every source layer whose [`Source::name`] equals `name` and
+    /// rebuilds.
+    ///
+    /// Watchers belonging to removed layers are stopped. Runtime overrides are
+    /// retained. Returns the number of removed layers.
+    pub fn remove_source(&self, name: &str) -> Result<usize> {
+        self.inner.remove_source(name)
     }
 
     /// Re-reads all source layers and rebuilds.
@@ -657,6 +728,7 @@ type WatchCallbackEntry = (u64, Arc<dyn Fn(WatchEvent) + Send + Sync>);
 type WatchChannelEntry = (u64, Sender<WatchEvent>);
 #[cfg(feature = "async")]
 type AsyncWatchChannelEntry = (u64, futures_channel::mpsc::UnboundedSender<WatchEvent>);
+type WatchedSubscription = (Arc<dyn Watchable>, Box<dyn WatchSubscription>);
 
 struct WatchState {
     next_id: u64,
@@ -664,7 +736,7 @@ struct WatchState {
     channels: Vec<WatchChannelEntry>,
     #[cfg(feature = "async")]
     async_channels: Vec<AsyncWatchChannelEntry>,
-    subscriptions: Vec<Box<dyn WatchSubscription>>,
+    subscriptions: Vec<WatchedSubscription>,
     dispatcher: Option<Sender<DispatchCommand>>,
 }
 
@@ -701,6 +773,7 @@ pub(crate) struct ConfigInner {
     state: RwLock<State>,
     write_lock: Mutex<()>,
     watch: Mutex<WatchState>,
+    validation: Option<Validator>,
 }
 
 impl ConfigInner {
@@ -711,6 +784,7 @@ impl ConfigInner {
         snapshot: Snapshot,
         merge: MergeOptions,
         coercion: Coercion,
+        validation: Option<Validator>,
     ) -> Self {
         Self {
             state: RwLock::new(State {
@@ -723,7 +797,15 @@ impl ConfigInner {
             }),
             write_lock: Mutex::new(()),
             watch: Mutex::new(WatchState::default()),
+            validation,
         }
+    }
+
+    fn validate(&self, snapshot: &Snapshot) -> Result<()> {
+        if let Some(validation) = &self.validation {
+            validation(snapshot)?;
+        }
+        Ok(())
     }
 
     fn read_state(&self) -> RwLockReadGuard<'_, State> {
@@ -770,6 +852,7 @@ impl ConfigInner {
         let sources_value = load_sources(&layers, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion);
+        self.validate(&new_snapshot)?;
 
         let mut watch = self.lock_watch();
         let mut new_subscription = None;
@@ -780,7 +863,8 @@ impl ConfigInner {
             && let Some(sender) = watch.dispatcher.clone()
         {
             let callback = watch_callback(sender);
-            new_subscription = Some(watchable.watch(callback)?);
+            let subscription = watchable.watch(callback)?;
+            new_subscription = Some((watchable, subscription));
         }
 
         {
@@ -806,6 +890,62 @@ impl ConfigInner {
         Ok(())
     }
 
+    fn remove_source(&self, name: &str) -> Result<usize> {
+        let _write_guard = self.lock_write();
+        let (layers, overlay, merge, coercion, old) = {
+            let state = self.read_state();
+            (
+                state.layers.clone(),
+                state.overlay.clone(),
+                state.merge,
+                state.coercion,
+                state.snapshot.clone(),
+            )
+        };
+
+        let mut kept = Vec::with_capacity(layers.len());
+        let mut removed_watchables = Vec::new();
+        let mut removed = 0;
+        for layer in layers {
+            if layer.source.name() == name {
+                removed += 1;
+                if let Some(watchable) = &layer.watchable {
+                    removed_watchables.push(Arc::clone(watchable));
+                }
+            } else {
+                kept.push(layer);
+            }
+        }
+        if removed == 0 {
+            return Ok(0);
+        }
+
+        let sources_value = load_sources(&kept, &merge)?;
+        let merged = apply_overlay(&sources_value, &overlay, &merge)?;
+        let new_snapshot = Snapshot::from_parts(merged, coercion);
+        self.validate(&new_snapshot)?;
+
+        let mut watch = self.lock_watch();
+        stop_watch_subscriptions(&mut watch, &removed_watchables);
+        {
+            let mut state = self.write_state();
+            state.layers = kept;
+            state.sources_value = sources_value;
+            state.snapshot = new_snapshot.clone();
+        }
+
+        let changes = old.diff(&new_snapshot);
+        if !changes.is_empty()
+            && let Some(sender) = &watch.dispatcher
+        {
+            let _ = sender.send(DispatchCommand::Emit(WatchEvent::Changed {
+                snapshot: new_snapshot,
+                changes,
+            }));
+        }
+        Ok(removed)
+    }
+
     fn reload(&self) -> Result<()> {
         let _write_guard = self.lock_write();
         let (layers, overlay, merge, coercion, old) = {
@@ -821,6 +961,7 @@ impl ConfigInner {
         let sources_value = load_sources(&layers, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion);
+        self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
             state.sources_value = sources_value;
@@ -846,6 +987,7 @@ impl ConfigInner {
         insert_overlay(&mut overlay, &path, value)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion);
+        self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
             state.overlay = overlay;
@@ -871,6 +1013,7 @@ impl ConfigInner {
         delete_overlay(&mut overlay, path.segments());
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion);
+        self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
             state.overlay = overlay;
@@ -909,6 +1052,7 @@ impl ConfigInner {
         let sources_value = load_sources(&layers, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion);
+        self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
             state.sources_value = sources_value;
@@ -993,9 +1137,11 @@ impl ConfigInner {
         for layer in &layers {
             if let Some(watchable) = &layer.watchable {
                 match watchable.watch(callback.clone()) {
-                    Ok(subscription) => subscriptions.push(subscription),
+                    Ok(subscription) => {
+                        subscriptions.push((Arc::clone(watchable), subscription));
+                    }
                     Err(error) => {
-                        for subscription in subscriptions {
+                        for (_, subscription) in subscriptions {
                             subscription.stop();
                         }
                         return Err(error);
@@ -1023,7 +1169,7 @@ impl ConfigInner {
             if let Some(sender) = watch.dispatcher.take() {
                 let _ = sender.send(DispatchCommand::Shutdown);
             }
-            for subscription in watch.subscriptions.drain(..) {
+            for (_, subscription) in watch.subscriptions.drain(..) {
                 subscription.stop();
             }
         }
@@ -1091,7 +1237,7 @@ impl ConfigInner {
                 if let Some(sender) = watch.dispatcher.take() {
                     let _ = sender.send(DispatchCommand::Shutdown);
                 }
-                for subscription in watch.subscriptions.drain(..) {
+                for (_, subscription) in watch.subscriptions.drain(..) {
                     subscription.stop();
                 }
             }
@@ -1131,6 +1277,21 @@ fn watch_callback(sender: Sender<DispatchCommand>) -> WatchCallback {
         };
         let _ = sender.send(command);
     })
+}
+
+fn stop_watch_subscriptions(watch: &mut WatchState, removed: &[Arc<dyn Watchable>]) {
+    let mut kept = Vec::with_capacity(watch.subscriptions.len());
+    for (watchable, subscription) in watch.subscriptions.drain(..) {
+        if removed
+            .iter()
+            .any(|removed| Arc::ptr_eq(removed, &watchable))
+        {
+            subscription.stop();
+        } else {
+            kept.push((watchable, subscription));
+        }
+    }
+    watch.subscriptions = kept;
 }
 
 fn load_sources(layers: &[Layer], merge: &MergeOptions) -> Result<Value> {

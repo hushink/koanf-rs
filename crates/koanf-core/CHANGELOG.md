@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - numeric array-index reads and `Error::InvalidIndex`
 - runtime overrides, watch callbacks/channels, and a runtime-agnostic async
   watch stream
+- runtime source inspection and removal, stopping removed layers' watchers
+- snapshot validation hooks with `Error::Validation`
 - snapshot and section rendering through the `Format` trait
 
 ### Fixed

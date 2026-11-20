@@ -26,8 +26,12 @@ struct StaticSource {
 
 impl StaticSource {
     fn new(map: koanf_core::Map) -> Self {
+        Self::named("static", map)
+    }
+
+    fn named(name: &str, map: koanf_core::Map) -> Self {
         Self {
-            name: "static".to_owned(),
+            name: name.to_owned(),
             map,
         }
     }
@@ -282,6 +286,109 @@ fn overlay_set_delete_and_reload() {
     config.reload().unwrap();
     assert_eq!(config.get::<u16>("a").unwrap(), 1);
     assert_eq!(config.get::<u16>("nested.value").unwrap(), 5);
+}
+
+#[test]
+fn removes_named_sources_and_retains_overrides() {
+    let base = StaticSource::named("base", map([("a", Value::from(1)), ("b", Value::from(1))]));
+    let overrides = StaticSource::named("overrides", map([("a", Value::from(2))]));
+    let config = Config::builder()
+        .source(base)
+        .source(overrides)
+        .build()
+        .unwrap();
+    config.set("c", 3).unwrap();
+
+    assert_eq!(config.source_names(), vec!["base", "overrides"]);
+    assert_eq!(config.remove_source("overrides").unwrap(), 1);
+    assert_eq!(config.get::<u16>("a").unwrap(), 1);
+    assert_eq!(config.get::<u16>("b").unwrap(), 1);
+    assert_eq!(config.get::<u16>("c").unwrap(), 3);
+    assert_eq!(config.source_names(), vec!["base"]);
+    assert_eq!(config.remove_source("missing").unwrap(), 0);
+}
+
+#[test]
+fn removing_a_watched_source_stops_its_watcher() {
+    let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
+    let config = Config::builder().watched(source).build().unwrap();
+    let (guard, receiver) = config.watch_channel().unwrap();
+
+    assert_eq!(config.remove_source("trigger").unwrap(), 1);
+    match recv_event(&receiver) {
+        WatchEvent::Changed { snapshot, .. } => assert!(snapshot.as_map().is_empty()),
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    trigger.set_value(Value::from(2));
+    trigger.ping();
+    assert!(receiver.recv_timeout(Duration::from_millis(100)).is_err());
+
+    drop(guard);
+}
+
+fn validate_positive_port(snapshot: &koanf_core::Snapshot) -> Result<()> {
+    let port: u16 = snapshot.get("port")?;
+    if port == 0 {
+        return Err(Error::validation("port must be positive"));
+    }
+    Ok(())
+}
+
+#[test]
+fn validation_rejects_build_and_keeps_last_good_snapshot() {
+    let invalid = Config::builder()
+        .source(StaticSource::new(map([("port", Value::from(0))])))
+        .validate(validate_positive_port)
+        .build();
+    assert!(matches!(invalid, Err(Error::Validation { .. })));
+
+    let (source, trigger) = TriggerSource::new(map([("port", Value::from(1))]));
+    let config = Config::builder()
+        .source(source)
+        .validate(validate_positive_port)
+        .build()
+        .unwrap();
+
+    trigger.set("port", Value::from(0));
+    assert!(matches!(config.reload(), Err(Error::Validation { .. })));
+    assert_eq!(config.get::<u16>("port").unwrap(), 1);
+
+    assert!(matches!(
+        config.set("port", 0),
+        Err(Error::Validation { .. })
+    ));
+    assert_eq!(config.get::<u16>("port").unwrap(), 1);
+}
+
+#[test]
+fn validation_errors_are_reported_by_watch() {
+    let (source, trigger) = TriggerSource::new(map([("port", Value::from(1))]));
+    let config = Config::builder()
+        .watched(source)
+        .validate(validate_positive_port)
+        .build()
+        .unwrap();
+    let (guard, receiver) = config.watch_channel().unwrap();
+
+    trigger.set("port", Value::from(0));
+    trigger.ping();
+    assert!(matches!(
+        recv_event(&receiver),
+        WatchEvent::Error { error } if matches!(error.as_ref(), Error::Validation { .. })
+    ));
+    assert_eq!(config.get::<u16>("port").unwrap(), 1);
+
+    trigger.set("port", Value::from(2));
+    trigger.ping();
+    match recv_event(&receiver) {
+        WatchEvent::Changed { snapshot, .. } => {
+            assert_eq!(snapshot.get::<u16>("port").unwrap(), 2);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    drop(guard);
 }
 
 #[test]
