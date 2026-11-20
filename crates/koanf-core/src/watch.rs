@@ -7,6 +7,16 @@ use crate::config::ConfigInner;
 use crate::diff::ChangeSet;
 use crate::error::Error;
 
+#[cfg(feature = "async")]
+use std::pin::Pin;
+#[cfg(feature = "async")]
+use std::task::{Context, Poll};
+
+#[cfg(feature = "async")]
+use futures_channel::mpsc::UnboundedReceiver;
+#[cfg(feature = "async")]
+use futures_core::Stream;
+
 /// An event delivered to watch subscribers.
 ///
 /// Cloning an event is cheap: the snapshot and change set are reference
@@ -55,5 +65,45 @@ impl fmt::Debug for WatchGuard {
             .debug_struct("WatchGuard")
             .field("id", &self.id)
             .finish()
+    }
+}
+
+/// An asynchronous stream of [`WatchEvent`] values.
+///
+/// This is available with the `async` feature. It is runtime-agnostic: use it
+/// with any executor that can drive a [`futures_core::Stream`], or call
+/// [`WatchStream::recv`] directly.
+#[cfg(feature = "async")]
+pub struct WatchStream {
+    receiver: UnboundedReceiver<WatchEvent>,
+}
+
+#[cfg(feature = "async")]
+impl WatchStream {
+    pub(crate) fn new(receiver: UnboundedReceiver<WatchEvent>) -> Self {
+        Self { receiver }
+    }
+
+    /// Waits for the next event, returning `None` once the subscription ends.
+    pub async fn recv(&mut self) -> Option<WatchEvent> {
+        std::future::poll_fn(|context| Pin::new(&mut self.receiver).poll_next(context)).await
+    }
+}
+
+#[cfg(feature = "async")]
+impl Stream for WatchStream {
+    type Item = WatchEvent;
+
+    fn poll_next(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.get_mut().receiver).poll_next(context)
+    }
+}
+
+#[cfg(feature = "async")]
+impl fmt::Debug for WatchStream {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("WatchStream")
+            .finish_non_exhaustive()
     }
 }

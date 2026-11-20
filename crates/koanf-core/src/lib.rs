@@ -37,6 +37,8 @@ pub use merge::{ArrayMerge, MergeOptions, NullMerge};
 pub use path::{IntoPath, Path};
 pub use source::{Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable};
 pub use value::{Coercion, Map, Value};
+#[cfg(feature = "async")]
+pub use watch::WatchStream;
 pub use watch::{WatchEvent, WatchGuard};
 
 /// Re-export of the ordered map type used by [`Map`].

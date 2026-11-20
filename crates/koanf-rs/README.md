@@ -179,6 +179,23 @@ Watching re-reads **all** sources, rebuilds the merged snapshot, and emits a
 change set only when the result differs. Parse or I/O failures keep the previous
 snapshot and emit `WatchEvent::Error`.
 
+### Async watch stream
+
+Enable the `async` feature to receive events as a runtime-agnostic stream:
+
+```rust
+let (guard, mut events) = config.watch_stream()?;
+while let Some(event) = events.recv().await {
+    match event {
+        WatchEvent::Changed { snapshot, changes } => { /* ... */ }
+        WatchEvent::Error { error } => eprintln!("watch error: {error}"),
+    }
+}
+```
+
+`WatchStream` implements `futures_core::Stream`; `recv` is an inherent async
+method, so you can use it with any executor or with `StreamExt`.
+
 ## Sources
 
 | Source | Feature | Description |
@@ -212,6 +229,7 @@ must be an object.
 | `env` | yes | `env::Env` |
 | `args` | yes | `args::Args` |
 | `watch` | yes | File watching via `notify`; implies `file` |
+| `async` | no | `Config::watch_stream` / `WatchStream`, runtime-agnostic |
 
 `memory`, `confmap`, `structs`, and `bytes` are always available. Core types and
 extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.

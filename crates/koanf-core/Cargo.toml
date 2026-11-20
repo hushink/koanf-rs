@@ -16,9 +16,15 @@ categories = ["config"]
 serde.workspace = true
 serde_path_to_error.workspace = true
 indexmap.workspace = true
+futures-core = { workspace = true, optional = true }
+futures-channel = { workspace = true, optional = true }
+
+[features]
+async = ["dep:futures-core", "dep:futures-channel"]
 
 [dev-dependencies]
 serde_json.workspace = true
+futures-executor.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

@@ -11,6 +11,9 @@ toml = { version = "1.2", features = ["preserve_order"] }
 serde_yaml_ng = "0.10"
 notify = "8.2"
 notify-debouncer-full = "0.7"
+futures-core = "0.3"
+futures-channel = { version = "0.3", default-features = false, features = ["std"] }
+futures-executor = "0.3"
 tempfile = "3"
 trybuild = "1"
 

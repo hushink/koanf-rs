@@ -543,6 +543,38 @@ fn watch_restarts_after_last_guard_is_dropped() {
     drop(second_guard);
 }
 
+#[cfg(feature = "async")]
+#[test]
+fn watch_stream_delivers_events() {
+    use futures_executor::block_on;
+
+    let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
+    let config = Config::builder().watched(source).build().unwrap();
+    let (guard, mut stream) = config.watch_stream().unwrap();
+
+    trigger.set_value(Value::from(2));
+    trigger.ping();
+
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let event = block_on(stream.recv());
+        let _ = sender.send(event);
+    });
+
+    let event = receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("timed out waiting for async watch event")
+        .expect("watch stream ended unexpectedly");
+    match event {
+        WatchEvent::Changed { snapshot, .. } => {
+            assert_eq!(snapshot.get::<u16>("value").unwrap(), 2);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    drop(guard);
+}
+
 #[test]
 fn watch_callback_sees_events() {
     let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));

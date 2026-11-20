@@ -30,6 +30,7 @@ file = []
 env = []
 args = []
 watch = ["file", "dep:notify", "dep:notify-debouncer-full"]
+async = ["koanf-core/async"]
 
 [dev-dependencies]
 tempfile.workspace = true

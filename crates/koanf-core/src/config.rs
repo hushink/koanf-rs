@@ -17,6 +17,9 @@ use crate::source::{Source, WatchCallback, WatchSignal, WatchSubscription, Watch
 use crate::value::{Coercion, Map, Value};
 use crate::watch::{WatchEvent, WatchGuard};
 
+#[cfg(feature = "async")]
+use crate::watch::WatchStream;
+
 #[derive(Clone)]
 struct Layer {
     source: Arc<dyn Source>,
@@ -568,6 +571,24 @@ impl Config {
             .add_channel(Arc::downgrade(&self.inner), sender)?;
         Ok((WatchGuard::new(Arc::clone(&self.inner), id), receiver))
     }
+
+    /// Registers an asynchronous watch stream.
+    ///
+    /// This is available with the `async` feature. The stream is
+    /// runtime-agnostic; drive it with any executor, or call
+    /// [`WatchStream::recv`] directly. Keep the guard alive for as long as the
+    /// subscription is needed.
+    #[cfg(feature = "async")]
+    pub fn watch_stream(&self) -> Result<(WatchGuard, WatchStream)> {
+        let (sender, receiver) = futures_channel::mpsc::unbounded();
+        let id = self
+            .inner
+            .add_async_channel(Arc::downgrade(&self.inner), sender)?;
+        Ok((
+            WatchGuard::new(Arc::clone(&self.inner), id),
+            WatchStream::new(receiver),
+        ))
+    }
 }
 
 impl fmt::Debug for Config {
@@ -597,11 +618,15 @@ enum DispatchCommand {
 
 type WatchCallbackEntry = (u64, Arc<dyn Fn(WatchEvent) + Send + Sync>);
 type WatchChannelEntry = (u64, Sender<WatchEvent>);
+#[cfg(feature = "async")]
+type AsyncWatchChannelEntry = (u64, futures_channel::mpsc::UnboundedSender<WatchEvent>);
 
 struct WatchState {
     next_id: u64,
     callbacks: Vec<WatchCallbackEntry>,
     channels: Vec<WatchChannelEntry>,
+    #[cfg(feature = "async")]
+    async_channels: Vec<AsyncWatchChannelEntry>,
     subscriptions: Vec<Box<dyn WatchSubscription>>,
     dispatcher: Option<Sender<DispatchCommand>>,
 }
@@ -612,8 +637,25 @@ impl Default for WatchState {
             next_id: 1,
             callbacks: Vec::new(),
             channels: Vec::new(),
+            #[cfg(feature = "async")]
+            async_channels: Vec::new(),
             subscriptions: Vec::new(),
             dispatcher: None,
+        }
+    }
+}
+
+impl WatchState {
+    fn is_empty(&self) -> bool {
+        self.callbacks.is_empty() && self.channels.is_empty() && {
+            #[cfg(feature = "async")]
+            {
+                self.async_channels.is_empty()
+            }
+            #[cfg(not(feature = "async"))]
+            {
+                true
+            }
         }
     }
 }
@@ -875,6 +917,26 @@ impl ConfigInner {
         Ok(id)
     }
 
+    #[cfg(feature = "async")]
+    fn add_async_channel(
+        &self,
+        inner: Weak<Self>,
+        sender: futures_channel::mpsc::UnboundedSender<WatchEvent>,
+    ) -> Result<u64> {
+        let _write_guard = self.lock_write();
+        let mut watch = self.lock_watch();
+        let id = watch.next_id;
+        watch.next_id += 1;
+        watch.async_channels.push((id, sender));
+        if let Err(error) = self.ensure_watching(&mut watch, inner) {
+            watch
+                .async_channels
+                .retain(|(channel_id, _)| *channel_id != id);
+            return Err(error);
+        }
+        Ok(id)
+    }
+
     fn ensure_watching(&self, watch: &mut WatchState, inner: Weak<Self>) -> Result<()> {
         if watch.dispatcher.is_some() {
             return Ok(());
@@ -914,7 +976,11 @@ impl ConfigInner {
             .callbacks
             .retain(|(callback_id, _)| *callback_id != id);
         watch.channels.retain(|(channel_id, _)| *channel_id != id);
-        if watch.callbacks.is_empty() && watch.channels.is_empty() {
+        #[cfg(feature = "async")]
+        watch
+            .async_channels
+            .retain(|(channel_id, _)| *channel_id != id);
+        if watch.is_empty() {
             if let Some(sender) = watch.dispatcher.take() {
                 let _ = sender.send(DispatchCommand::Shutdown);
             }
@@ -940,6 +1006,15 @@ impl ConfigInner {
                     .collect::<Vec<_>>(),
             )
         };
+        #[cfg(feature = "async")]
+        let async_channels = {
+            let watch = self.lock_watch();
+            watch
+                .async_channels
+                .iter()
+                .map(|(id, sender)| (*id, sender.clone()))
+                .collect::<Vec<_>>()
+        };
 
         for (_, callback) in callbacks {
             let event = event.clone();
@@ -952,11 +1027,28 @@ impl ConfigInner {
                 dead.push(id);
             }
         }
+        #[cfg(feature = "async")]
+        let mut async_dead = Vec::new();
+        #[cfg(feature = "async")]
+        for (id, sender) in async_channels {
+            if sender.unbounded_send(event.clone()).is_err() {
+                async_dead.push(id);
+            }
+        }
 
-        if !dead.is_empty() {
+        #[cfg(feature = "async")]
+        let has_dead = !dead.is_empty() || !async_dead.is_empty();
+        #[cfg(not(feature = "async"))]
+        let has_dead = !dead.is_empty();
+
+        if has_dead {
             let mut watch = self.lock_watch();
             watch.channels.retain(|(id, _)| !dead.contains(id));
-            if watch.callbacks.is_empty() && watch.channels.is_empty() {
+            #[cfg(feature = "async")]
+            watch
+                .async_channels
+                .retain(|(id, _)| !async_dead.contains(id));
+            if watch.is_empty() {
                 if let Some(sender) = watch.dispatcher.take() {
                     let _ = sender.send(DispatchCommand::Shutdown);
                 }

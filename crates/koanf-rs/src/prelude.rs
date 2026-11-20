@@ -8,3 +8,6 @@ pub use koanf_core::{
     IntoPath, Map, MergeOptions, NullMerge, Path, Result, Section, Snapshot, Source, Value,
     WatchEvent, WatchGuard, WatchSignal, Watchable,
 };
+
+#[cfg(feature = "async")]
+pub use koanf_core::WatchStream;

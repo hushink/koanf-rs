@@ -175,6 +175,23 @@ fn main() -> Result<()> {
 任一被监视源变化时，库会重新读取**全部**源、重建合并快照，并在结果确实变化时
 推送变更集。解析或 I/O 失败时保留上一个可用快照，并推送 `WatchEvent::Error`。
 
+### 异步 watch stream
+
+启用 `async` feature 后，可以把事件作为运行时无关的 stream 接收：
+
+```rust
+let (guard, mut events) = config.watch_stream()?;
+while let Some(event) = events.recv().await {
+    match event {
+        WatchEvent::Changed { snapshot, changes } => { /* ... */ }
+        WatchEvent::Error { error } => eprintln!("watch error: {error}"),
+    }
+}
+```
+
+`WatchStream` 实现 `futures_core::Stream`；`recv` 是自带 async 方法，可配合任意
+executor 或 `StreamExt` 使用。
+
 ## 配置源
 
 | 源 | feature | 说明 |
@@ -207,6 +224,7 @@ fn main() -> Result<()> {
 | `env` | 是 | `env::Env` |
 | `args` | 是 | `args::Args` |
 | `watch` | 是 | 通过 `notify` 监听文件；隐含 `file` |
+| `async` | 否 | `Config::watch_stream` / `WatchStream`，运行时无关 |
 
 `memory`、`confmap`、`structs`、`bytes` 始终可用。核心类型与扩展 trait 位于
 `koanf-core`；`koanf-rs` facade 负责 re-export。
