@@ -12,13 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - layered configuration facade with `Memory`/`ConfMap`, `Structs`, `Bytes`,
-  `File`, `dir::Dir`, `glob::Glob`, `Env`, `Args`, HTTP(S), and Consul KV
-  sources
+  `File`, `dir::Dir`, `glob::Glob`, `Env`, `Args`, HTTP(S), Consul KV, and
+  Vault KV sources
 - JSON, TOML, and YAML formats, plus optional dotenv, INI, and RON parsers
 - deterministic directory layering with optional recursive traversal and watch
 - glob-pattern matching under a root directory with recursive watch
 - conditional HTTP(S) requests with compression and polling watch
 - Consul KV loading with nested keys and polling watch
+- Vault KV v1/v2 loading with token, namespace, and polling watch
 - snapshot and section rendering back to JSON, TOML, and YAML
 - rendered file saves through `Config`, `Snapshot`, and `Section`
 - file and directory watching, async watch streams, and compile-time

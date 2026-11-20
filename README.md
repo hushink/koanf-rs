@@ -9,8 +9,8 @@ A layered configuration library for Rust, inspired by Go's
 implementation**, not an official port.
 
 - Multiple sources: memory, typed defaults, files and directories, glob
-  patterns, environment variables, CLI arguments, inline bytes, HTTP(S), and
-  Consul KV.
+  patterns, environment variables, CLI arguments, inline bytes, HTTP(S),
+  Consul KV, and Vault KV.
 - Multiple formats: JSON, TOML, and YAML, with optional dotenv, INI, and RON.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
@@ -311,6 +311,26 @@ let config = Config::builder().watched(source).build()?;
 Watching polls the prefix at a configurable interval; values are strings, so
 numeric and boolean reads use the usual coercion.
 
+### Vault source
+
+The optional `vault` feature reads a KV v1 or v2 secret. Its payload becomes the
+root configuration object:
+
+```rust
+use koanf_rs::vault::{KvVersion, Vault};
+use koanf_rs::prelude::*;
+
+let source = Vault::new("http://127.0.0.1:8200", "secret", "app/config")?
+    .kv_version(KvVersion::V2)
+    .token("hvs.secret")
+    .namespace("team-a");
+
+let config = Config::builder().watched(source).build()?;
+```
+
+KV v2 is the default; use `.kv_v1()` for version 1. Missing secrets can be
+treated as an empty layer with `.optional()`.
+
 ## Sources
 
 | Source | Feature | Description |
@@ -325,6 +345,7 @@ numeric and boolean reads use the usual coercion.
 | `args::Args` | `args` | `--key=value`, `--key value`, and `--flag` forms |
 | `http::Http` | `http` | HTTP(S); conditional GETs, compression, polling watch |
 | `consul::Consul` | `consul` | Consul KV prefix; nested keys, token/auth, polling watch |
+| `vault::Vault` | `vault` | Vault KV v1/v2 secret; token/namespace, polling watch |
 
 ## Formats
 
@@ -359,6 +380,7 @@ coercion applies when a numeric or boolean target is requested.
 | `async` | no | `Config::watch_stream` / `WatchStream`, runtime-agnostic |
 | `http` | no | `http::Http`, reqwest + rustls; polling watch |
 | `consul` | no | `consul::Consul`, reqwest + base64; polling watch |
+| `vault` | no | `vault::Vault`, KV v1/v2; polling watch |
 
 `memory`, `confmap`, `structs`, and `bytes` are always available. Core types and
 extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.
@@ -396,7 +418,7 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
-Not in v1: other remote sources (S3/etcd/vault), async source adapters, a derive
+Not in v1: other remote sources (S3/etcd), async source adapters, a derive
 schema macro, `no_std`/WASM, or secret redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).

@@ -10,6 +10,7 @@ error[E0277]: the trait bound `ConfMap: Watchable` is not satisfied
             Consul
             Glob
             Http
+            Vault
             koanf_rs::dir::Dir
             koanf_rs::file::File
 note: required by a bound in `ConfigBuilder::watched`

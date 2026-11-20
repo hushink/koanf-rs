@@ -44,6 +44,7 @@ watch = ["file", "dep:notify", "dep:notify-debouncer-full"]
 async = ["koanf-core/async"]
 http = ["dep:reqwest", "dep:sha2"]
 consul = ["dep:reqwest", "dep:base64", "dep:serde_json"]
+vault = ["dep:reqwest", "dep:serde_json"]
 
 [dev-dependencies]
 tempfile.workspace = true
