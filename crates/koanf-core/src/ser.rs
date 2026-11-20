@@ -360,6 +360,11 @@ impl SerializeMap for MapSerializer {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        if self.key.is_some() {
+            return Err(SerError(
+                "serialize_key was called without a matching serialize_value".to_owned(),
+            ));
+        }
         Ok(Value::Map(self.map))
     }
 }

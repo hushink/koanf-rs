@@ -48,6 +48,9 @@ pub enum WatchSignal {
 }
 
 /// Callback type used by [`Watchable`] implementations.
+///
+/// Implementations should invoke the callback without blocking; the library's
+/// callback only forwards the signal to its dispatcher thread.
 pub type WatchCallback = Arc<dyn Fn(WatchSignal) + Send + Sync>;
 
 /// A source that can notify the configuration when its underlying data changes.

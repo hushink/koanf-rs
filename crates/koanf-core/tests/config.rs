@@ -226,6 +226,37 @@ fn overlay_set_delete_and_reload() {
 }
 
 #[test]
+fn failed_reload_and_load_keep_the_previous_snapshot() {
+    let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
+    let config = Config::builder().watched(source).build().unwrap();
+
+    trigger.set_fail(true);
+    assert!(config.reload().is_err());
+    assert_eq!(config.get::<u16>("value").unwrap(), 1);
+
+    let extra = StaticSource::new(map([("extra", Value::from(2))]));
+    assert!(config.load(extra).is_err());
+    assert!(!config.contains("extra"));
+
+    trigger.set_fail(false);
+    config.reload().unwrap();
+    assert_eq!(config.get::<u16>("value").unwrap(), 1);
+}
+
+#[test]
+fn set_rejects_traversal_through_scalar_overrides() {
+    let source = StaticSource::new(map([("a", Value::from(1))]));
+    let config = Config::builder().source(source).build().unwrap();
+
+    config.set("a", 2).unwrap();
+    assert!(matches!(
+        config.set("a.b", 3),
+        Err(Error::InvalidPath { .. })
+    ));
+    assert_eq!(config.get::<u16>("a").unwrap(), 2);
+}
+
+#[test]
 fn config_clones_share_updates() {
     let source = StaticSource::new(map([("a", Value::from(1))]));
     let config = Config::builder().source(source).build().unwrap();

@@ -31,7 +31,12 @@ pub enum Coercion {
 /// kept as [`Value::Int`], [`Value::Uint`], or [`Value::Float`]. Positive
 /// integers that fit in `i64` are canonicalized to [`Value::Int`]; `Uint` is
 /// only used for values greater than `i64::MAX`.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Equality treats an `Int` and a `Uint` with the same non-negative numeric
+/// value as equal, and treats all NaN floats as equal. This keeps snapshot
+/// diffs and watch events stable when values are constructed by hand or
+/// re-parsed.
+#[derive(Clone, Debug)]
 pub enum Value {
     /// The absence of a value.
     Null,
@@ -165,6 +170,32 @@ impl Value {
             message: format!("integer `{value}` does not fit in the configuration value model"),
         })?;
         Ok(Value::canonical_uint(value))
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Null, Self::Null) => true,
+            (Self::Bool(left), Self::Bool(right)) => left == right,
+            (Self::Int(left), Self::Int(right)) => left == right,
+            (Self::Uint(left), Self::Uint(right)) => left == right,
+            // Positive integers that fit in i64 are canonicalized to Int by
+            // constructors and deserializers. Treat hand-built Uint values as
+            // equal to their Int counterpart so diffs and merges remain stable.
+            (Self::Int(left), Self::Uint(right)) | (Self::Uint(right), Self::Int(left)) => {
+                *left >= 0 && (*left as u64) == *right
+            }
+            // Config values are snapshots: treat every NaN as equal so a
+            // reload that produces NaN again does not emit a spurious change.
+            (Self::Float(left), Self::Float(right)) => {
+                left == right || (left.is_nan() && right.is_nan())
+            }
+            (Self::String(left), Self::String(right)) => left == right,
+            (Self::Array(left), Self::Array(right)) => left == right,
+            (Self::Map(left), Self::Map(right)) => left == right,
+            _ => false,
+        }
     }
 }
 
@@ -434,6 +465,14 @@ mod tests {
     fn canonicalizes_small_uints_to_int() {
         assert_eq!(Value::from(1_u64), Value::Int(1));
         assert_eq!(Value::from(u64::MAX), Value::Uint(u64::MAX));
+    }
+
+    #[test]
+    fn numeric_and_nan_equality_is_stable() {
+        assert_eq!(Value::Uint(1), Value::Int(1));
+        assert_ne!(Value::Uint(1), Value::Int(2));
+        assert_eq!(Value::Float(f64::NAN), Value::Float(f64::NAN));
+        assert_ne!(Value::Float(f64::NAN), Value::Float(1.0));
     }
 
     #[test]

@@ -536,7 +536,10 @@ impl Config {
     /// Registers a watch callback.
     ///
     /// The callback runs on a dedicated dispatcher thread. It should be fast;
-    /// offload heavy work to another thread or channel.
+    /// offload heavy work to another thread or channel. A panic in a callback
+    /// is caught so it cannot kill the watcher. Keep the returned guard alive
+    /// for as long as the subscription is needed; dropping it unregisters the
+    /// callback.
     pub fn watch<F>(&self, callback: F) -> Result<WatchGuard>
     where
         F: Fn(WatchEvent) + Send + Sync + 'static,
@@ -550,9 +553,10 @@ impl Config {
     /// Registers a watch channel.
     ///
     /// The returned receiver is a standard single-consumer channel. Multiple
-    /// consumers can register multiple channels or callbacks. Dropping the
-    /// guard stops the subscription; dropping the receiver stops delivery (the
-    /// sender is removed on the next event).
+    /// consumers can register multiple channels or callbacks. Keep the guard
+    /// alive for as long as the subscription is needed; dropping it stops the
+    /// subscription. Dropping the receiver stops delivery (the sender is
+    /// removed on the next event).
     pub fn watch_channel(&self) -> Result<(WatchGuard, Receiver<WatchEvent>)> {
         let (sender, receiver) = mpsc::channel();
         let id = self
@@ -840,20 +844,30 @@ impl ConfigInner {
     ) -> Result<u64> {
         let _write_guard = self.lock_write();
         let mut watch = self.lock_watch();
-        self.ensure_watching(&mut watch, inner)?;
         let id = watch.next_id;
         watch.next_id += 1;
+        // Register before starting watchers so an event arriving during
+        // watcher setup cannot be missed by this subscription.
         watch.callbacks.push((id, callback));
+        if let Err(error) = self.ensure_watching(&mut watch, inner) {
+            watch
+                .callbacks
+                .retain(|(callback_id, _)| *callback_id != id);
+            return Err(error);
+        }
         Ok(id)
     }
 
     fn add_channel(&self, inner: Weak<Self>, sender: Sender<WatchEvent>) -> Result<u64> {
         let _write_guard = self.lock_write();
         let mut watch = self.lock_watch();
-        self.ensure_watching(&mut watch, inner)?;
         let id = watch.next_id;
         watch.next_id += 1;
         watch.channels.push((id, sender));
+        if let Err(error) = self.ensure_watching(&mut watch, inner) {
+            watch.channels.retain(|(channel_id, _)| *channel_id != id);
+            return Err(error);
+        }
         Ok(id)
     }
 

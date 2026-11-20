@@ -180,4 +180,11 @@ mod tests {
         let value = map([("a", Value::from(1))]);
         assert!(ChangeSet::diff(&value, &value).is_empty());
     }
+
+    #[test]
+    fn numeric_and_nan_equality_is_stable_for_diffs() {
+        let old = map([("uint", Value::Uint(1)), ("nan", Value::Float(f64::NAN))]);
+        let new = map([("uint", Value::Int(1)), ("nan", Value::Float(f64::NAN))]);
+        assert!(ChangeSet::diff(&old, &new).is_empty());
+    }
 }
