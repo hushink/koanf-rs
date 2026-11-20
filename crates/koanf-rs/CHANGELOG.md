@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - directory and glob watchers reload on any change under the watched tree, so
   coalesced macOS FSEvents notifications are not missed
+- directory watchers use the canonical path so FSEvents does not drop events
+  for symlinked roots such as macOS temporary directories
 
 ### Other
 

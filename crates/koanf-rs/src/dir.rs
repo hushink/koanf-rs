@@ -223,6 +223,10 @@ pub(crate) fn collect_files(
 #[cfg(feature = "watch")]
 impl Watchable for Dir {
     fn watch(&self, callback: WatchCallback) -> Result<Box<dyn WatchSubscription>> {
+        // Watch the canonical path. Backends such as FSEvents report canonical
+        // paths; watching a symlinked path (common for macOS temp directories)
+        // can cause their events to be dropped.
+        let watch_root = std::fs::canonicalize(&self.path).unwrap_or_else(|_| self.path.clone());
         let directory = self.path.clone();
         let has_explicit_format = self.format.is_some();
         let recursive = self.recursive;
@@ -269,8 +273,8 @@ impl Watchable for Dir {
         } else {
             notify::RecursiveMode::NonRecursive
         };
-        debouncer.watch(&self.path, mode).map_err(|error| {
-            crate::file::watch_error(format!("failed to watch `{}`", self.path.display()), error)
+        debouncer.watch(&watch_root, mode).map_err(|error| {
+            crate::file::watch_error(format!("failed to watch `{}`", watch_root.display()), error)
         })?;
 
         Ok(Box::new(crate::file::NotifyWatchSubscription::new(
