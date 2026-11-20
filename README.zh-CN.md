@@ -8,7 +8,7 @@
 这是**独立的 Rust 实现**，不是官方移植版本。
 
 - 多配置源：内存、类型化默认值、文件与目录、环境变量、命令行参数、内联字节。
-- 多格式：JSON、TOML、YAML。
+- 多格式：JSON、TOML、YAML，可选 dotenv 与 INI。
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
   路径作用域的 `Section` 视图。
@@ -147,7 +147,7 @@ let url: String = database.get("url")?;
 
 ### 渲染
 
-内置格式可以把完整配置或 `Section` 渲染回字节：
+JSON、TOML、YAML 格式可以把完整配置或 `Section` 渲染回字节：
 
 ```rust
 use koanf_rs::format::{Json, Yaml};
@@ -253,8 +253,11 @@ let config = Config::builder().watched(source).build()?;
 | `format::Json` | `json` | 严格 JSON；保留对象顺序 |
 | `format::Toml` | `toml` | TOML datetime 转为字符串 |
 | `format::Yaml` | `yaml` | 标准标量/序列/映射；自定义 tag 非一等支持 |
+| `format::Dotenv` | `dotenv` | 扁平字符串 map；支持引号与 `${VAR}` 替换 |
+| `format::Ini` | `ini` | 全局键位于根；section 嵌套在名称下 |
 
-所有格式统一解析为有序 `Value` 树；每个源的根必须是对象。
+所有格式统一解析为有序 `Value` 树；每个源的根必须是对象。Dotenv 与 INI 的值
+都是字符串；读取数值或布尔目标时仍会应用默认的宽松转换。
 
 ## Feature flags
 
@@ -263,6 +266,8 @@ let config = Config::builder().watched(source).build()?;
 | `json` | 是 | `format::Json` |
 | `toml` | 是 | `format::Toml` |
 | `yaml` | 是 | `format::Yaml` |
+| `dotenv` | 否 | `format::Dotenv`；也会识别 `.env` 文件名 |
+| `ini` | 否 | `format::Ini` 与 `.ini` 识别 |
 | `file` | 是 | `file::File` 与 `dir::Dir` |
 | `env` | 是 | `env::Env` |
 | `args` | 是 | `args::Args` |
@@ -299,7 +304,7 @@ let config = Config::builder().watched(source).build()?;
 
 ## 状态
 
-v0.1 聚焦本地源、三种格式、类型化读取与文件监听。
+v0.1 聚焦本地源、多种格式、类型化读取与监听。
 
 v1 不包含：远程源（S3/etcd/consul/vault）、glob 模式源、async 配置源适配、
 derive schema 宏、验证框架、写入文件辅助 API、`no_std`/WASM、数组索引路径、

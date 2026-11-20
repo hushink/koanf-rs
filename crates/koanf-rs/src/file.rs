@@ -19,9 +19,10 @@ use koanf_core::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
 
 /// A single-file configuration source.
 ///
-/// The format is inferred from the extension (`.json`, `.toml`, `.yaml`, or
-/// `.yml`) unless one is supplied with [`File::format`]. A missing file is an
-/// error unless [`File::optional`] is used.
+/// The format is inferred from the extension (`.json`, `.toml`, `.yaml`,
+/// `.yml`, or `.ini`) or from a `.env` filename, when the corresponding format
+/// feature is enabled. Use [`File::format`] to override inference. A missing
+/// file is an error unless [`File::optional`] is used.
 #[derive(Clone)]
 pub struct File {
     path: PathBuf,
@@ -72,6 +73,9 @@ impl File {
 }
 
 pub(crate) fn known_extension(path: &StdPath) -> bool {
+    if is_dotenv_path(path) {
+        return cfg!(feature = "dotenv");
+    }
     match path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -81,8 +85,22 @@ pub(crate) fn known_extension(path: &StdPath) -> bool {
         Some("json") if cfg!(feature = "json") => true,
         Some("toml") if cfg!(feature = "toml") => true,
         Some("yaml" | "yml") if cfg!(feature = "yaml") => true,
+        Some("ini") if cfg!(feature = "ini") => true,
         _ => false,
     }
+}
+
+fn is_dotenv_path(path: &StdPath) -> bool {
+    if path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case(".env"))
+    {
+        return true;
+    }
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("env"))
 }
 
 pub(crate) fn format_for_path(
@@ -91,6 +109,9 @@ pub(crate) fn format_for_path(
 ) -> Result<Arc<dyn Format>> {
     if let Some(format) = explicit {
         return Ok(Arc::clone(format));
+    }
+    if is_dotenv_path(path) {
+        return dotenv_format();
     }
     let extension = path
         .extension()
@@ -101,6 +122,7 @@ pub(crate) fn format_for_path(
         "json" => json_format(),
         "toml" => toml_format(),
         "yaml" | "yml" => yaml_format(),
+        "ini" => ini_format(),
         _ => Err(Error::UnknownFormat {
             path: path.to_path_buf(),
             extension,
@@ -187,6 +209,32 @@ fn yaml_format() -> Result<Arc<dyn Format>> {
 fn yaml_format() -> Result<Arc<dyn Format>> {
     Err(Error::Unsupported {
         format: "yaml".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+#[cfg(feature = "dotenv")]
+fn dotenv_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Dotenv))
+}
+
+#[cfg(not(feature = "dotenv"))]
+fn dotenv_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "dotenv".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+#[cfg(feature = "ini")]
+fn ini_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Ini))
+}
+
+#[cfg(not(feature = "ini"))]
+fn ini_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "ini".to_owned(),
         operation: "format feature not enabled",
     })
 }

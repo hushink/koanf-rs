@@ -713,6 +713,74 @@ mod render_tests {
     }
 }
 
+#[cfg(feature = "dotenv")]
+mod dotenv_tests {
+    use koanf_rs::bytes::Bytes;
+    use koanf_rs::prelude::*;
+
+    #[test]
+    fn parses_flat_string_values() {
+        let source = Bytes::new(
+            b"PORT=8080\nNAME=\"demo app\"\nDEBUG=true\n# comment\nexport ENABLED=yes\n",
+            koanf_rs::format::Dotenv,
+        );
+        let config = Config::builder().source(source).build().unwrap();
+
+        assert_eq!(config.get::<u16>("PORT").unwrap(), 8080);
+        assert_eq!(config.get::<String>("NAME").unwrap(), "demo app");
+        assert!(config.get::<bool>("DEBUG").unwrap());
+        assert_eq!(config.get::<String>("ENABLED").unwrap(), "yes");
+    }
+
+    #[cfg(feature = "file")]
+    #[test]
+    fn detects_the_dotenv_filename() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(".env");
+        std::fs::write(&path, "PORT=9090\n").unwrap();
+
+        let config = Config::builder()
+            .source(koanf_rs::file::File::new(path))
+            .build()
+            .unwrap();
+        assert_eq!(config.get::<u16>("PORT").unwrap(), 9090);
+    }
+}
+
+#[cfg(feature = "ini")]
+mod ini_tests {
+    use koanf_rs::bytes::Bytes;
+    use koanf_rs::prelude::*;
+
+    #[test]
+    fn parses_global_keys_and_sections() {
+        let source = Bytes::new(
+            b"root = global\n[server]\nhost = localhost\nport = 8080\n[server]\ntls = true\n",
+            koanf_rs::format::Ini,
+        );
+        let config = Config::builder().source(source).build().unwrap();
+
+        assert_eq!(config.get::<String>("root").unwrap(), "global");
+        assert_eq!(config.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 8080);
+        assert!(config.get::<bool>("server.tls").unwrap());
+    }
+
+    #[cfg(feature = "file")]
+    #[test]
+    fn detects_ini_by_extension() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.ini");
+        std::fs::write(&path, "[server]\nport = 7070\n").unwrap();
+
+        let config = Config::builder()
+            .source(koanf_rs::file::File::new(path))
+            .build()
+            .unwrap();
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 7070);
+    }
+}
+
 #[test]
 fn confmap_alias_matches_memory() {
     use koanf_rs::confmap::ConfMap;

@@ -10,7 +10,7 @@ implementation**, not an official port.
 
 - Multiple sources: memory, typed defaults, files and directories, environment
   variables, CLI arguments, and inline bytes.
-- Multiple formats: JSON, TOML, and YAML.
+- Multiple formats: JSON, TOML, and YAML, with optional dotenv and INI.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
 - Typed access through serde: `deserialize::<T>()`, `get::<T>(path)`, and
@@ -151,7 +151,8 @@ let url: String = database.get("url")?;
 
 ### Rendering
 
-Built-in formats render complete configurations and sections back to bytes:
+The JSON, TOML, and YAML formats render complete configurations and sections
+back to bytes:
 
 ```rust
 use koanf_rs::format::{Json, Yaml};
@@ -259,9 +260,12 @@ and emits an event only when the content actually changes.
 | `format::Json` | `json` | Strict JSON; object order preserved |
 | `format::Toml` | `toml` | TOML datetimes become strings |
 | `format::Yaml` | `yaml` | Standard scalars/sequences/mappings; custom tags are not first-class |
+| `format::Dotenv` | `dotenv` | Flat string map; quoting and `${VAR}` substitution |
+| `format::Ini` | `ini` | Global keys at the root; sections nest under their names |
 
 All formats parse into the same ordered `Value` tree. The root of every source
-must be an object.
+must be an object. Dotenv and INI values are strings; the usual lenient
+coercion applies when a numeric or boolean target is requested.
 
 ## Feature flags
 
@@ -270,6 +274,8 @@ must be an object.
 | `json` | yes | `format::Json` |
 | `toml` | yes | `format::Toml` |
 | `yaml` | yes | `format::Yaml` |
+| `dotenv` | no | `format::Dotenv`; also detects `.env` file names |
+| `ini` | no | `format::Ini` and `.ini` detection |
 | `file` | yes | `file::File` and `dir::Dir` |
 | `env` | yes | `env::Env` |
 | `args` | yes | `args::Args` |
@@ -309,7 +315,7 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 ## Status
 
-v0.1 focuses on local sources, three formats, typed access, and file watching.
+v0.1 focuses on local sources, multiple formats, typed access, and watching.
 
 Not in v1: remote sources (S3/etcd/consul/vault), glob-pattern sources, async
 adapters, a derive schema macro, validation hooks, save-to-file helpers,

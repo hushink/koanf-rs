@@ -41,8 +41,9 @@
 //! # Features
 //!
 //! The default features enable `json`, `toml`, `yaml`, `file`, `env`, `args`,
-//! and `watch`. `memory`, `structs`, `confmap`, and `bytes` are always
-//! available. Use `default-features = false` for a minimal core.
+//! and `watch`. The optional `dotenv` and `ini` features add those parsers.
+//! `memory`, `structs`, `confmap`, and `bytes` are always available. Use
+//! `default-features = false` for a minimal core.
 //!
 //! The [`prelude`] re-exports the core types; built-in sources and formats
 //! live in their own modules to avoid name collisions with `std`.
@@ -62,7 +63,13 @@ pub mod dir;
 pub mod env;
 #[cfg(feature = "file")]
 pub mod file;
-#[cfg(any(feature = "json", feature = "toml", feature = "yaml"))]
+#[cfg(any(
+    feature = "json",
+    feature = "toml",
+    feature = "yaml",
+    feature = "dotenv",
+    feature = "ini"
+))]
 pub mod format;
 #[cfg(feature = "http")]
 pub mod http;
