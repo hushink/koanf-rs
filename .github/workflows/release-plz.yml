@@ -3,7 +3,7 @@ name: Release-plz
 on:
   push:
     # Keep this in sync with the repository's default branch.
-    branches: [master, main]
+    branches: [main]
   # Useful for retrying the initial 0.1.0 release (for example after adding the
   # temporary token) or for re-running a failed release.
   workflow_dispatch:

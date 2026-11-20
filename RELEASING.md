@@ -23,17 +23,17 @@ automatically: while either `koanf-core` or `koanf-rs` is missing from the
 registry, it uses a temporary `CARGO_REGISTRY_TOKEN`; after both crates exist it
 switches to trusted publishing.
 
-1. Create the GitHub repository `hushink/koanf-rs`. If the owner is different,
-   update the `github.repository_owner` guards in
-   `.github/workflows/release-plz.yml`. The workflow triggers on `main` and
-   `master`.
+1. Create the GitHub repository `hushink/koanf-rs`. If the owner or default
+   branch is different, update the `github.repository_owner` guard and the
+   `branches` filter in `.github/workflows/release-plz.yml`. The committed
+   workflow targets `main`.
 2. Add a **temporary** repository secret named `CARGO_REGISTRY_TOKEN` with a
    crates.io token that can publish new crates. This secret is only needed for
    the initial crate creation.
 3. Push the repository:
    ```bash
    git remote add origin https://github.com/hushink/koanf-rs.git
-   git push -u origin main   # use master if that is your default branch
+   git push -u origin main   # use your default branch if it differs
    ```
    The check job detects that the crates do not exist and the bootstrap job
    publishes `koanf-core` first, then `koanf-rs`, creating the
