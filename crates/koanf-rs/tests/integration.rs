@@ -777,6 +777,12 @@ mod watch_tests {
     use koanf_rs::file::File;
     use koanf_rs::prelude::*;
 
+    fn write_atomic(path: &std::path::Path, contents: &str) {
+        let staged = path.with_extension("tmp");
+        fs::write(&staged, contents).unwrap();
+        fs::rename(&staged, path).unwrap();
+    }
+
     fn recv_matching<F>(receiver: &Receiver<WatchEvent>, predicate: F) -> WatchEvent
     where
         F: Fn(&WatchEvent) -> bool,
@@ -808,7 +814,7 @@ mod watch_tests {
             .unwrap();
         let (guard, receiver) = config.watch_channel().unwrap();
 
-        fs::write(&path, "value = 2\n").unwrap();
+        write_atomic(&path, "value = 2\n");
         let event = recv_matching(&receiver, |event| {
             matches!(
                 event,
@@ -821,11 +827,11 @@ mod watch_tests {
         };
         assert!(!changes.is_empty());
 
-        fs::write(&path, "value = [unterminated\n").unwrap();
+        write_atomic(&path, "value = [unterminated\n");
         recv_matching(&receiver, |event| matches!(event, WatchEvent::Error { .. }));
         assert_eq!(config.get::<u16>("value").unwrap(), 2);
 
-        fs::write(&path, "value = 3\n").unwrap();
+        write_atomic(&path, "value = 3\n");
         recv_matching(&receiver, |event| {
             matches!(
                 event,
@@ -848,7 +854,7 @@ mod watch_tests {
             .unwrap();
         let (guard, receiver) = config.watch_channel().unwrap();
 
-        fs::write(&path, "value = 7\n").unwrap();
+        write_atomic(&path, "value = 7\n");
         recv_matching(&receiver, |event| {
             matches!(
                 event,
