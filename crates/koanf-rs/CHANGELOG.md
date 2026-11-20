@@ -11,12 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- *(watch)* reload on coalesced directory events
-
-### Fixed
-
-- directory and glob watchers reload on any change under the watched tree, so
-  coalesced macOS FSEvents notifications are not missed
+- *(watch)* directory and glob watchers reload on any change under the watched
+  tree, so coalesced macOS FSEvents notifications are not missed
 
 ### Other
 
