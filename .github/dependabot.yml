@@ -27,4 +27,7 @@ updates:
       actions-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    # Keep the MSRV job pinned to the minimum supported Rust version.
+    ignore:
+      - dependency-name: "dtolnay/rust-toolchain"
     open-pull-requests-limit: 5
