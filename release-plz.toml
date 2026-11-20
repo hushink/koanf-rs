@@ -5,6 +5,7 @@ dependencies_update = false
 git_release_enable = true
 git_tag_enable = true
 pr_branch_prefix = "release-plz-"
+pr_labels = ["area: ci"]
 publish = true
 publish_timeout = "30m"
 release = true

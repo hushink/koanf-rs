@@ -1,0 +1,103 @@
+# Repository label taxonomy. This file is the source of truth; the labels
+# workflow syncs it to GitHub. Existing labels are renamed through `from_name`
+# so their issue and pull-request assignments are preserved.
+
+# Type: the nature of the change. Apply one per issue or pull request.
+- name: "type: bug"
+  color: "#d73a4a"
+  description: "Something is broken or behaves incorrectly"
+  from_name: "bug"
+
+- name: "type: feature"
+  color: "#a2eeef"
+  description: "New user-facing capability or enhancement"
+  from_name: "enhancement"
+
+- name: "type: docs"
+  color: "#0075ca"
+  description: "Documentation, examples, or README improvements"
+  from_name: "documentation"
+
+- name: "type: chore"
+  color: "#cfd3d7"
+  description: "Refactoring, tests, dependencies, or maintenance"
+
+- name: "type: question"
+  color: "#d876e3"
+  description: "Usage question or clarification request"
+  from_name: "question"
+
+# Status: where the issue is in triage. Remove once it is resolved.
+- name: "status: needs triage"
+  color: "#fbca04"
+  description: "Awaiting maintainer review and classification"
+
+- name: "status: blocked"
+  color: "#d93f0b"
+  description: "Waiting on a dependency or external decision"
+
+- name: "status: waiting for author"
+  color: "#e4e669"
+  description: "Waiting for more information from the author"
+
+- name: "status: duplicate"
+  color: "#cfd3d7"
+  description: "Already tracked by another issue or pull request"
+  from_name: "duplicate"
+
+- name: "status: invalid"
+  color: "#cfd3d7"
+  description: "Not reproducible or not a valid issue for this project"
+  from_name: "invalid"
+
+- name: "status: wontfix"
+  color: "#ffffff"
+  description: "Will not be worked on"
+  from_name: "wontfix"
+
+# Priority: how urgently the work should be scheduled.
+- name: "priority: high"
+  color: "#b60205"
+  description: "Should be addressed in the current cycle"
+
+- name: "priority: medium"
+  color: "#fbca04"
+  description: "Important, but not urgent"
+
+- name: "priority: low"
+  color: "#0e8a16"
+  description: "Nice to have; address when time permits"
+
+# Area: the part of the workspace or runtime the work touches.
+- name: "area: core"
+  color: "#5319e7"
+  description: "Value, path, merge, snapshot, and serde engine"
+
+- name: "area: sources"
+  color: "#1d76db"
+  description: "Built-in configuration sources"
+
+- name: "area: formats"
+  color: "#0052cc"
+  description: "Configuration parsers and renderers"
+
+- name: "area: watch"
+  color: "#006b75"
+  description: "File watching, polling, and change events"
+
+- name: "area: schema"
+  color: "#6f42c1"
+  description: "Schema trait, derive macro, validation, and redaction"
+
+- name: "area: ci"
+  color: "#c5def5"
+  description: "CI, release automation, and repository tooling"
+
+# Contributor-facing labels. Keep the GitHub-standard names.
+- name: "good first issue"
+  color: "#7057ff"
+  description: "Good for first-time contributors"
+
+- name: "help wanted"
+  color: "#008672"
+  description: "Extra attention or expertise is welcome"
