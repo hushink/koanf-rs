@@ -1417,7 +1417,6 @@ impl ConfigInner {
             state.snapshot = new_snapshot.clone();
         }
         let changes = old.diff(&new_snapshot);
-        eprintln!("koanf reload changes={}", changes.len());
         if changes.is_empty() {
             Ok(None)
         } else {
@@ -1456,7 +1455,6 @@ impl ConfigInner {
         let id = watch.next_id;
         watch.next_id += 1;
         watch.channels.push((id, sender));
-        eprintln!("koanf add channel id={id}");
         if let Err(error) = self.ensure_watching(&mut watch, inner) {
             watch.channels.retain(|(channel_id, _)| *channel_id != id);
             return Err(error);
@@ -1574,16 +1572,6 @@ impl ConfigInner {
                 .map(|(id, sender)| (*id, sender.clone()))
                 .collect::<Vec<_>>()
         };
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        eprintln!(
-            "koanf broadcast callbacks={} channels={} at {now}",
-            callbacks.len(),
-            channels.len()
-        );
-
         for (_, callback) in callbacks {
             let event = event.clone();
             let _ = catch_unwind(AssertUnwindSafe(|| callback(event)));
@@ -1591,9 +1579,7 @@ impl ConfigInner {
 
         let mut dead = Vec::new();
         for (id, sender) in channels {
-            let sent = sender.send(event.clone()).is_ok();
-            eprintln!("koanf channel send id={id} sent={sent}");
-            if !sent {
+            if sender.send(event.clone()).is_err() {
                 dead.push(id);
             }
         }
@@ -1633,11 +1619,6 @@ impl ConfigInner {
 #[cfg(feature = "std")]
 fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>) {
     while let Ok(command) = receiver.recv() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        eprintln!("koanf dispatch command received at {now}");
         let Some(inner) = inner.upgrade() else {
             break;
         };
@@ -1669,11 +1650,6 @@ fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>
 #[cfg(feature = "std")]
 fn watch_callback(sender: Sender<DispatchCommand>) -> WatchCallback {
     Arc::new(move |signal| {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        eprintln!("koanf watch signal received at {now}");
         let command = match signal {
             WatchSignal::Changed => DispatchCommand::SourceChanged,
             WatchSignal::Error(error) => DispatchCommand::SourceError(error),

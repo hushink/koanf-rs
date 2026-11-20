@@ -728,13 +728,6 @@ mod dir_tests {
 
         // Give backends such as FSEvents time to start delivering events.
         std::thread::sleep(Duration::from_millis(250));
-        eprintln!(
-            "koanf test before write at {}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-        );
 
         // Write atomically so a watcher reload can never observe a partially
         // written file.
@@ -748,13 +741,6 @@ mod dir_tests {
                     if snapshot.get::<u16>("value").ok() == Some(2)
             )
         });
-        eprintln!(
-            "koanf first phase done at {}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-        );
 
         fs::remove_file(nested.join("20-extra.toml")).unwrap();
         recv_matching(&receiver, |event| {
