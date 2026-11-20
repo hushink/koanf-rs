@@ -27,10 +27,13 @@ switches to trusted publishing.
    branch is different, update the `github.repository_owner` guard and the
    `branches` filter in `.github/workflows/release-plz.yml`. The committed
    workflow targets `main`.
-2. Add a **temporary** repository secret named `CARGO_REGISTRY_TOKEN` with a
+2. In repository **Settings → Actions → General → Workflow permissions**,
+   enable **Allow GitHub Actions to create and approve pull requests** for the
+   release PR job.
+3. Add a **temporary** repository secret named `CARGO_REGISTRY_TOKEN` with a
    crates.io token that can publish new crates. This secret is only needed for
    the initial crate creation.
-3. Push the repository:
+4. Push the repository:
    ```bash
    git remote add origin https://github.com/hushink/koanf-rs.git
    git push -u origin main   # use your default branch if it differs
@@ -39,14 +42,14 @@ switches to trusted publishing.
    publishes `koanf-core` first, then `koanf-rs`, creating the
    `koanf-core-v0.1.0` / `koanf-rs-v0.1.0` tags and GitHub releases. No local
    `cargo publish` is involved.
-4. After `0.1.0` is visible on crates.io, configure trusted publishing for
+5. After `0.1.0` is visible on crates.io, configure trusted publishing for
    **both** crates:
    - GitHub owner: `hushink`
    - Repository: `koanf-rs`
    - Workflow filename: `release-plz.yml`
      (the file is `.github/workflows/release-plz.yml`)
    - Environment: leave empty; the workflow does not use a GitHub environment.
-5. Delete the `CARGO_REGISTRY_TOKEN` secret. From now on the existence check
+6. Delete the `CARGO_REGISTRY_TOKEN` secret. From now on the existence check
    finds both crates and the release job uses OIDC only.
 
 If the first run fails (for example, the secret was not added yet), add it and
