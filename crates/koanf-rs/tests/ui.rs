@@ -1,4 +1,4 @@
-#[cfg(feature = "watch")]
+#[cfg(all(feature = "watch", feature = "http"))]
 #[test]
 fn watched_requires_watchable() {
     let test_cases = trybuild::TestCases::new();

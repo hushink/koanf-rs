@@ -192,6 +192,28 @@ while let Some(event) = events.recv().await {
 `WatchStream` 实现 `futures_core::Stream`；`recv` 是自带 async 方法，可配合任意
 executor 或 `StreamExt` 使用。
 
+### HTTP 源
+
+可选 `http` feature 提供条件请求、gzip / brotli / deflate / zstd 解压，以及
+轮询式 watch：
+
+```rust
+use koanf_rs::http::Http;
+use koanf_rs::prelude::*;
+use std::time::Duration;
+
+let source = Http::new("https://example.com/config.json")?
+    .header("X-Api-Key", "secret")?
+    .timeout(Duration::from_secs(10))
+    .poll_interval(Duration::from_secs(30));
+
+let config = Config::builder().watched(source).build()?;
+```
+
+`Http` 在 reload 时发送 `If-None-Match` / `If-Modified-Since`，并以 SHA-256
+内容哈希作为兜底。watch 按 `poll_interval`（默认 30 秒）轮询，仅在内容确实变化
+时推送事件。
+
 ## 配置源
 
 | 源 | feature | 说明 |
@@ -202,6 +224,7 @@ executor 或 `StreamExt` 使用。
 | `file::File` | `file` | 单文件；默认按扩展名推断格式 |
 | `env::Env` | `env` | 带前缀的环境变量，`__` 分隔嵌套路径 |
 | `args::Args` | `args` | `--key=value`、`--key value`、`--flag` |
+| `http::Http` | `http` | HTTP(S)；条件请求、压缩、轮询 watch |
 
 ## 格式
 
@@ -225,6 +248,7 @@ executor 或 `StreamExt` 使用。
 | `args` | 是 | `args::Args` |
 | `watch` | 是 | 通过 `notify` 监听文件；隐含 `file` |
 | `async` | 否 | `Config::watch_stream` / `WatchStream`，运行时无关 |
+| `http` | 否 | `http::Http`，reqwest + rustls；轮询 watch |
 
 `memory`、`confmap`、`structs`、`bytes` 始终可用。核心类型与扩展 trait 位于
 `koanf-core`；`koanf-rs` facade 负责 re-export。

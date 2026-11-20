@@ -196,6 +196,28 @@ while let Some(event) = events.recv().await {
 `WatchStream` implements `futures_core::Stream`; `recv` is an inherent async
 method, so you can use it with any executor or with `StreamExt`.
 
+### HTTP source
+
+The optional `http` feature adds a source with conditional requests, gzip /
+brotli / deflate / zstd decompression, and polling-based watch:
+
+```rust
+use koanf_rs::http::Http;
+use koanf_rs::prelude::*;
+use std::time::Duration;
+
+let source = Http::new("https://example.com/config.json")?
+    .header("X-Api-Key", "secret")?
+    .timeout(Duration::from_secs(10))
+    .poll_interval(Duration::from_secs(30));
+
+let config = Config::builder().watched(source).build()?;
+```
+
+`Http` sends `If-None-Match` / `If-Modified-Since` on reloads and falls back to
+a SHA-256 content hash. The watch loop polls at `poll_interval` (default 30s)
+and emits an event only when the content actually changes.
+
 ## Sources
 
 | Source | Feature | Description |
@@ -206,6 +228,7 @@ method, so you can use it with any executor or with `StreamExt`.
 | `file::File` | `file` | Single file; format inferred from extension or set explicitly |
 | `env::Env` | `env` | Prefixed environment variables with `__`-separated paths |
 | `args::Args` | `args` | `--key=value`, `--key value`, and `--flag` forms |
+| `http::Http` | `http` | HTTP(S); conditional GETs, compression, polling watch |
 
 ## Formats
 
@@ -230,6 +253,7 @@ must be an object.
 | `args` | yes | `args::Args` |
 | `watch` | yes | File watching via `notify`; implies `file` |
 | `async` | no | `Config::watch_stream` / `WatchStream`, runtime-agnostic |
+| `http` | no | `http::Http`, reqwest + rustls; polling watch |
 
 `memory`, `confmap`, `structs`, and `bytes` are always available. Core types and
 extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.

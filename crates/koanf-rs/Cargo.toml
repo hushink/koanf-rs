@@ -20,6 +20,8 @@ toml = { workspace = true, optional = true }
 serde_yaml_ng = { workspace = true, optional = true }
 notify = { workspace = true, optional = true }
 notify-debouncer-full = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
 
 [features]
 default = ["json", "toml", "yaml", "file", "env", "args", "watch"]
@@ -31,6 +33,7 @@ env = []
 args = []
 watch = ["file", "dep:notify", "dep:notify-debouncer-full"]
 async = ["koanf-core/async"]
+http = ["dep:reqwest", "dep:sha2"]
 
 [dev-dependencies]
 tempfile.workspace = true

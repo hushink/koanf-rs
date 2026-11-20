@@ -62,6 +62,8 @@ pub mod env;
 pub mod file;
 #[cfg(any(feature = "json", feature = "toml", feature = "yaml"))]
 pub mod format;
+#[cfg(feature = "http")]
+pub mod http;
 pub mod memory;
 pub mod prelude;
 pub mod structs;
