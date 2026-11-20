@@ -729,7 +729,11 @@ mod dir_tests {
         // Give backends such as FSEvents time to start delivering events.
         std::thread::sleep(Duration::from_millis(250));
 
-        fs::write(nested.join("20-extra.toml"), "value = 2\n").unwrap();
+        // Write atomically so a watcher reload can never observe a partially
+        // written file.
+        let staged = nested.join("20-extra.toml.tmp");
+        fs::write(&staged, "value = 2\n").unwrap();
+        fs::rename(staged, nested.join("20-extra.toml")).unwrap();
         recv_matching(&receiver, |event| {
             matches!(
                 event,

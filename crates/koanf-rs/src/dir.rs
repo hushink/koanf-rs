@@ -227,12 +227,6 @@ impl Watchable for Dir {
         // paths; watching a symlinked path (common for macOS temp directories)
         // can cause their events to be dropped.
         let watch_root = std::fs::canonicalize(&self.path).unwrap_or_else(|_| self.path.clone());
-        eprintln!(
-            "koanf dir watcher: root={} canonical={} recursive={}",
-            self.path.display(),
-            watch_root.display(),
-            self.recursive
-        );
         let directory = self.path.clone();
         let has_explicit_format = self.format.is_some();
         let recursive = self.recursive;
@@ -243,12 +237,6 @@ impl Watchable for Dir {
             None,
             move |result: notify_debouncer_full::DebounceEventResult| match result {
                 Ok(events) => {
-                    for event in &events {
-                        eprintln!(
-                            "koanf dir event: kind={:?} paths={:?}",
-                            event.event.kind, event.event.paths
-                        );
-                    }
                     // Backends such as FSEvents may coalesce a nested change
                     // into an event on a directory with no config extension.
                     // Reload on any event for recursive watches and explicit
@@ -264,7 +252,6 @@ impl Watchable for Dir {
                     }
                 }
                 Err(errors) => {
-                    eprintln!("koanf dir watcher errors: {errors:?}");
                     if let Some(error) = errors.into_iter().next() {
                         callback_for_events(WatchSignal::Error(crate::file::watch_error(
                             format!("directory watcher for `{}` failed", directory.display()),
