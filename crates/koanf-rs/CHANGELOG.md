@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/hushink/koanf-rs/compare/koanf-rs-v0.1.0...koanf-rs-v0.1.1) - 2026-11-20
+
 ### Fixed
 
-- directory and glob watchers reload on any change under the watched tree, so
-  coalesced macOS FSEvents notifications are not missed
-- directory watchers use the canonical path so FSEvents does not drop events
-  for symlinked roots such as macOS temporary directories
+- *(watch)* directory and glob watchers reload on any change under the watched
+  tree, so coalesced macOS FSEvents notifications are not missed
+- *(watch)* directory watchers use the canonical path so FSEvents does not drop
+  events for symlinked roots such as macOS temporary directories
 
 ### Other
 
