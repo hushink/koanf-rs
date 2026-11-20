@@ -1,0 +1,270 @@
+//! File configuration source.
+
+use std::fs;
+use std::io;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use koanf_core::{Error, Format, Map, Result, Source, Value};
+
+use crate::util::strip_bom;
+
+#[cfg(feature = "watch")]
+use std::sync::Mutex;
+#[cfg(feature = "watch")]
+use std::time::Duration;
+
+#[cfg(feature = "watch")]
+use koanf_core::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
+
+/// A single-file configuration source.
+///
+/// The format is inferred from the extension (`.json`, `.toml`, `.yaml`, or
+/// `.yml`) unless one is supplied with [`File::format`]. A missing file is an
+/// error unless [`File::optional`] is used.
+#[derive(Clone)]
+pub struct File {
+    path: PathBuf,
+    name: String,
+    format: Option<Arc<dyn Format>>,
+    optional: bool,
+    #[cfg(feature = "watch")]
+    debounce: Duration,
+}
+
+impl File {
+    /// Creates a file source.
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        let path = path.into();
+        Self {
+            name: format!("file:{}", path.display()),
+            path,
+            format: None,
+            optional: false,
+            #[cfg(feature = "watch")]
+            debounce: Duration::from_millis(100),
+        }
+    }
+
+    /// Sets an explicit format, overriding extension inference.
+    pub fn format<F>(mut self, format: F) -> Self
+    where
+        F: Format + 'static,
+    {
+        self.format = Some(Arc::new(format));
+        self
+    }
+
+    /// Treats a missing file as an empty layer.
+    ///
+    /// Other I/O errors still fail.
+    pub fn optional(mut self) -> Self {
+        self.optional = true;
+        self
+    }
+
+    /// Sets the file-watch debounce duration. The default is 100 ms.
+    #[cfg(feature = "watch")]
+    pub fn debounce(mut self, duration: Duration) -> Self {
+        self.debounce = duration;
+        self
+    }
+
+    fn format_for_read(&self) -> Result<Arc<dyn Format>> {
+        if let Some(format) = &self.format {
+            return Ok(Arc::clone(format));
+        }
+        let extension = self
+            .path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| extension.to_ascii_lowercase())
+            .unwrap_or_default();
+        match extension.as_str() {
+            "json" => json_format(),
+            "toml" => toml_format(),
+            "yaml" | "yml" => yaml_format(),
+            _ => Err(Error::UnknownFormat {
+                path: self.path.clone(),
+                extension,
+            }),
+        }
+    }
+}
+
+#[cfg(feature = "json")]
+fn json_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Json))
+}
+
+#[cfg(not(feature = "json"))]
+fn json_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "json".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+#[cfg(feature = "toml")]
+fn toml_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Toml))
+}
+
+#[cfg(not(feature = "toml"))]
+fn toml_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "toml".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+#[cfg(feature = "yaml")]
+fn yaml_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Yaml))
+}
+
+#[cfg(not(feature = "yaml"))]
+fn yaml_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "yaml".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+impl Source for File {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn read(&self) -> Result<Map> {
+        let data = match fs::read(&self.path) {
+            Ok(data) => data,
+            Err(error) if error.kind() == io::ErrorKind::NotFound && self.optional => {
+                return Ok(Map::new());
+            }
+            Err(error) => {
+                return Err(Error::Io {
+                    path: self.path.clone(),
+                    source: error,
+                });
+            }
+        };
+        let data = strip_bom(&data);
+        let format = self.format_for_read()?;
+        let value = match format.parse(data) {
+            Ok(value) => value,
+            Err(Error::Format {
+                format,
+                path: None,
+                source,
+            }) => {
+                return Err(Error::Format {
+                    format,
+                    path: Some(self.path.clone()),
+                    source,
+                });
+            }
+            Err(error) => return Err(error),
+        };
+        let actual = value.type_name();
+        match value {
+            Value::Map(map) => Ok(map),
+            _ => Err(Error::InvalidRoot {
+                source: self.name.clone(),
+                actual,
+            }),
+        }
+    }
+}
+
+#[cfg(feature = "watch")]
+fn watch_error(message: impl Into<String>, error: notify::Error) -> Error {
+    Error::Watch {
+        message: message.into(),
+        source: Some(Box::new(error)),
+    }
+}
+
+#[cfg(feature = "watch")]
+struct FileWatchSubscription {
+    debouncer: Mutex<
+        Option<
+            notify_debouncer_full::Debouncer<
+                notify::RecommendedWatcher,
+                notify_debouncer_full::RecommendedCache,
+            >,
+        >,
+    >,
+}
+
+#[cfg(feature = "watch")]
+impl WatchSubscription for FileWatchSubscription {
+    fn stop(self: Box<Self>) {
+        let mut guard = self
+            .debouncer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(debouncer) = guard.take() {
+            debouncer.stop();
+        }
+    }
+}
+
+#[cfg(feature = "watch")]
+impl Watchable for File {
+    fn watch(&self, callback: WatchCallback) -> Result<Box<dyn WatchSubscription>> {
+        let watch_root = self
+            .path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(|parent| parent.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let target = self.path.clone();
+        let target_name = target.file_name().map(|name| name.to_os_string());
+        let callback_for_events = Arc::clone(&callback);
+
+        let mut debouncer = notify_debouncer_full::new_debouncer(
+            self.debounce,
+            None,
+            move |result: notify_debouncer_full::DebounceEventResult| match result {
+                Ok(events) => {
+                    let relevant = match &target_name {
+                        Some(name) => events.iter().any(|event| {
+                            event.event.paths.iter().any(|path| {
+                                path == &target || path.file_name() == Some(name.as_os_str())
+                            })
+                        }),
+                        None => !events.is_empty(),
+                    };
+                    if relevant {
+                        callback_for_events(WatchSignal::Changed);
+                    }
+                }
+                Err(errors) => {
+                    if let Some(error) = errors.into_iter().next() {
+                        callback_for_events(WatchSignal::Error(watch_error(
+                            format!("file watcher for `{}` failed", target.display()),
+                            error,
+                        )));
+                    }
+                }
+            },
+        )
+        .map_err(|error| {
+            watch_error(
+                format!("failed to start watcher for `{}`", self.path.display()),
+                error,
+            )
+        })?;
+
+        debouncer
+            .watch(&watch_root, notify::RecursiveMode::NonRecursive)
+            .map_err(|error| {
+                watch_error(format!("failed to watch `{}`", watch_root.display()), error)
+            })?;
+
+        Ok(Box::new(FileWatchSubscription {
+            debouncer: Mutex::new(Some(debouncer)),
+        }))
+    }
+}

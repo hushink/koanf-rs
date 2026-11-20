@@ -1,0 +1,21 @@
+error[E0277]: the trait bound `ConfMap: Watchable` is not satisfied
+ --> tests/ui/watched_requires_watchable.rs:5:39
+  |
+5 |     let _ = Config::builder().watched(Memory::empty());
+  |                               ------- ^^^^^^^^^^^^^^^ the trait `Watchable` is not implemented for `ConfMap`
+  |                               |
+  |                               required by a bound introduced by this call
+  |
+help: the trait `Watchable` is implemented for `koanf_rs::file::File`
+ --> src/file.rs
+  |
+  | impl Watchable for File {
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `ConfigBuilder::watched`
+ --> $WORKSPACE/crates/koanf-core/src/config.rs
+  |
+  |     pub fn watched<W>(mut self, source: W) -> Self
+  |            ------- required by a bound in this associated function
+  |     where
+  |         W: Watchable + 'static,
+  |            ^^^^^^^^^ required by this bound in `ConfigBuilder::watched`

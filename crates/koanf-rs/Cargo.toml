@@ -1,0 +1,55 @@
+[package]
+name = "koanf-rs"
+description = "Rust configuration library with layered sources, multiple formats, typed serde access, and file watching"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+documentation = "https://docs.rs/koanf-rs"
+keywords = ["config", "configuration", "settings", "koanf", "watch"]
+categories = ["config"]
+
+[dependencies]
+koanf-core = { path = "../koanf-core", version = "0.1.0" }
+serde.workspace = true
+serde_json = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+serde_yaml_ng = { workspace = true, optional = true }
+notify = { workspace = true, optional = true }
+notify-debouncer-full = { workspace = true, optional = true }
+
+[features]
+default = ["json", "toml", "yaml", "file", "env", "args", "watch"]
+json = ["dep:serde_json"]
+toml = ["dep:toml"]
+yaml = ["dep:serde_yaml_ng"]
+file = []
+env = []
+args = []
+watch = ["file", "dep:notify", "dep:notify-debouncer-full"]
+
+[dev-dependencies]
+tempfile.workspace = true
+trybuild.workspace = true
+serde_json.workspace = true
+
+[[example]]
+name = "basic"
+
+[[example]]
+name = "typed"
+required-features = ["file", "env", "args", "toml"]
+
+[[example]]
+name = "layered"
+required-features = ["file", "env", "args", "toml"]
+
+[[example]]
+name = "watch"
+required-features = ["watch", "toml"]
+
+[package.metadata.docs.rs]
+all-features = true

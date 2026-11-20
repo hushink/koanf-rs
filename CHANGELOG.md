@@ -1,0 +1,22 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+## [0.1.0] - 2026-11-21
+
+Initial release.
+
+### Added
+
+- Layered configuration with deterministic precedence and atomic rebuilds.
+- Ordered `Value`/`Map` model with JSON, TOML, and YAML formats.
+- Typed serde access: `deserialize`, `get`, `get_opt`, `get_or`, and
+  `Section` views.
+- Type-directed scalar coercion with a strict opt-out.
+- Sources: `Memory`/`ConfMap`, `Structs` (typed defaults), `Bytes`, `File`,
+  `Env`, and `Args`.
+- Runtime overrides via `set`/`delete` that survive `reload`.
+- File watching with full rebuilds, change sets, and last-known-good snapshots.
+- `Source`, `Format`, and `Watchable` extension traits.
+- Feature-gated facade with `koanf-core` as the extension-facing engine.
+- Bilingual README, examples, CI, and Apache-2.0 licensing.
