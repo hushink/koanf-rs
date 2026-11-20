@@ -289,7 +289,8 @@ let config = Config::builder().watched(source).build()?;
   （`get::<u16>`、serde 字段）。`Coercion::Strict` 关闭该行为；字符串字段
   永远不会收到转换后的值。
 - **路径**：`get("server.port")` 按 `.` 切分；含点键使用 `Path::key("a.b")`。
-  数组作为整体读取；v1 不支持数字数组索引路径。
+  遍历到数组时，数字段会作为索引（如 `servers.0.host`）；对象中的 `"0"` 仍是
+  普通键。数组覆盖必须替换整个数组。
 - **错误**：单一、`#[non_exhaustive]` 的 `Error` 枚举，携带源、格式、路径、
   转换、watch 与序列化上下文。库不会因用户输入 panic，也不提供 `expect_*`。
 - **并发**：`Config`、`Snapshot`、`Section` 均为 `Send + Sync`。clone
@@ -308,8 +309,8 @@ let config = Config::builder().watched(source).build()?;
 v0.1 聚焦本地源、多种格式、类型化读取与监听。
 
 v1 不包含：远程源（S3/etcd/consul/vault）、glob 模式源、async 配置源适配、
-derive schema 宏、验证框架、写入文件辅助 API、`no_std`/WASM、数组索引路径、
-动态层删除、敏感值脱敏。
+derive schema 宏、验证框架、写入文件辅助 API、`no_std`/WASM、动态层删除、
+敏感值脱敏。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

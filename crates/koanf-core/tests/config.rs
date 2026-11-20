@@ -105,6 +105,65 @@ fn layered_typed_access_and_sections() {
 }
 
 #[test]
+fn reads_array_indices_and_rejects_index_overrides() {
+    let servers = Value::Array(vec![
+        Value::Map(map([("host", Value::from("a")), ("port", Value::from(80))])),
+        Value::Map(map([
+            ("host", Value::from("b")),
+            ("port", Value::from(8080)),
+        ])),
+    ]);
+    let metrics = Value::Map(map([("0", Value::from(5))]));
+    let config = Config::builder()
+        .source(StaticSource::new(map([
+            ("servers", servers),
+            ("metrics", metrics),
+        ])))
+        .build()
+        .unwrap();
+
+    assert_eq!(config.get::<String>("servers.0.host").unwrap(), "a");
+    assert_eq!(config.get::<u16>("servers.1.port").unwrap(), 8080);
+    assert_eq!(config.get::<u16>("metrics.0").unwrap(), 5);
+    assert!(config.contains("servers.1"));
+    assert_eq!(config.get_opt::<String>("servers.2.host").unwrap(), None);
+    assert_eq!(
+        config
+            .get_or::<String>("servers.2.host", "fallback".to_owned())
+            .unwrap(),
+        "fallback"
+    );
+    assert!(matches!(
+        config.get::<String>("servers.two"),
+        Err(Error::InvalidIndex { .. })
+    ));
+    assert!(matches!(
+        config.get::<String>("servers.2.host"),
+        Err(Error::PathNotFound { .. })
+    ));
+
+    let section = config.section("servers.1").unwrap();
+    assert_eq!(section.get::<u16>("port").unwrap(), 8080);
+    assert_eq!(section.prefix().to_string(), "servers.1");
+
+    assert!(matches!(
+        config.set("servers.0.host", "x"),
+        Err(Error::InvalidPath { .. })
+    ));
+    assert!(matches!(
+        config.delete("servers.1"),
+        Err(Error::InvalidPath { .. })
+    ));
+    config
+        .set(
+            "servers",
+            Value::Array(vec![Value::Map(map([("host", Value::from("c"))]))]),
+        )
+        .unwrap();
+    assert_eq!(config.get::<String>("servers.0.host").unwrap(), "c");
+}
+
+#[test]
 fn missing_and_null_are_distinct() {
     let source = StaticSource::new(map([
         ("null_value", Value::Null),

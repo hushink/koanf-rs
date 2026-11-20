@@ -3,6 +3,10 @@
 //! Paths are stored as a sequence of string segments. The string convenience
 //! form (`"server.port"`) is split on `.`; a literal dot inside a single key
 //! must be expressed with [`Path::key`].
+//!
+//! Numeric segments are parsed as array indices when traversal reaches an
+//! array, so `"servers.0.port"` indexes the first server. A numeric key inside
+//! an object is still an ordinary object key.
 
 use std::fmt;
 

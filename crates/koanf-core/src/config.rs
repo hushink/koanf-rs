@@ -86,6 +86,21 @@ impl Snapshot {
                         return Err(Error::PathNotFound { path: path.clone() });
                     }
                 },
+                Value::Array(items) => {
+                    let index = segment.parse::<usize>().map_err(|_| Error::InvalidIndex {
+                        path: traversed.child(segment.clone()),
+                        segment: segment.clone(),
+                    })?;
+                    match items.get(index) {
+                        Some(value) => {
+                            current = value;
+                            traversed.push(segment.clone());
+                        }
+                        None => {
+                            return Err(Error::PathNotFound { path: path.clone() });
+                        }
+                    }
+                }
                 other => {
                     return Err(Error::NotAMap {
                         path: traversed,
@@ -100,7 +115,9 @@ impl Snapshot {
     /// Reads and deserializes the value at `path`.
     ///
     /// A missing path is an error. An explicit `null` is a value and is
-    /// deserialized normally; use `Option<T>` to accept it.
+    /// deserialized normally; use `Option<T>` to accept it. Numeric segments
+    /// index arrays when traversal reaches one; out-of-bounds indices count as
+    /// missing.
     pub fn get<T>(&self, path: impl IntoPath) -> Result<T>
     where
         T: DeserializeOwned,
@@ -538,6 +555,8 @@ impl Config {
     /// Overrides form the highest-priority layer and survive `reload`. The
     /// override is merged into the most recently loaded source values; call
     /// [`Self::reload`] first to observe external file/environment changes.
+    ///
+    /// Array index paths are read-only. Override the whole array instead.
     pub fn set<P, V>(&self, path: P, value: V) -> Result<()>
     where
         P: IntoPath,
@@ -552,7 +571,8 @@ impl Config {
     /// become visible again. Use [`Self::set`] with `Value::Null` to mask a
     /// lower-layer value. Like [`Self::set`], this uses the most recently
     /// loaded source values; call [`Self::reload`] first to observe external
-    /// changes.
+    /// changes. Array index paths are rejected; override the whole array
+    /// instead.
     pub fn delete(&self, path: impl IntoPath) -> Result<()> {
         self.inner.delete(path.into_path())
     }
@@ -822,6 +842,7 @@ impl ConfigInner {
                 state.snapshot.clone(),
             )
         };
+        reject_array_index_path(&sources_value, &path)?;
         insert_overlay(&mut overlay, &path, value)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion);
@@ -846,6 +867,7 @@ impl ConfigInner {
                 state.snapshot.clone(),
             )
         };
+        reject_array_index_path(&sources_value, &path)?;
         delete_overlay(&mut overlay, path.segments());
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion);
@@ -1132,6 +1154,26 @@ fn apply_overlay(sources_value: &Value, overlay: &Map, merge: &MergeOptions) -> 
         }
     }
     Ok(merged)
+}
+
+fn reject_array_index_path(sources_value: &Value, path: &Path) -> Result<()> {
+    let mut current = sources_value;
+    for segment in path.segments() {
+        match current {
+            Value::Map(map) => match map.get(segment) {
+                Some(value) => current = value,
+                None => return Ok(()),
+            },
+            Value::Array(_) => {
+                return Err(Error::InvalidPath {
+                    input: path.to_string(),
+                    reason: "array index paths are read-only; override the whole array".to_owned(),
+                });
+            }
+            _ => return Ok(()),
+        }
+    }
+    Ok(())
 }
 
 fn insert_overlay(overlay: &mut Map, path: &Path, value: Value) -> Result<()> {

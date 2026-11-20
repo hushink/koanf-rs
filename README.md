@@ -297,8 +297,9 @@ extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.
   types when requested (`get::<u16>`, serde fields). `Coercion::Strict` disables
   this. String fields never receive converted values.
 - **Paths**: `get("server.port")` splits on `.`. Use `Path::key("a.b")` for a
-  literal dotted key. Arrays are read as whole values; numeric array indexing is
-  not part of v1.
+  literal dotted key. Numeric segments index arrays when traversal reaches one
+  (`servers.0.host`); object keys such as `"0"` remain ordinary keys. Array
+  overrides must replace the whole array.
 - **Errors**: a single non-exhaustive `Error` enum with source, format, path,
   coercion, watch, and serialization context. The library does not panic on user
   input and does not provide `expect_*` helpers.
@@ -320,7 +321,7 @@ v0.1 focuses on local sources, multiple formats, typed access, and watching.
 
 Not in v1: remote sources (S3/etcd/consul/vault), glob-pattern sources, async
 adapters, a derive schema macro, validation hooks, save-to-file helpers,
-`no_std`/WASM, array-index paths, dynamic layer removal, or secret redaction.
+`no_std`/WASM, dynamic layer removal, or secret redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 

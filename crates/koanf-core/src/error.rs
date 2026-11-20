@@ -50,12 +50,19 @@ pub enum Error {
         /// Missing path.
         path: Path,
     },
-    /// A path segment was traversed through a non-map value.
+    /// A path segment was traversed through a non-map, non-array value.
     NotAMap {
         /// Path prefix that was expected to be a map.
         path: Path,
         /// Type name of the value that was found.
         actual: &'static str,
+    },
+    /// An array was traversed with a segment that is not a valid index.
+    InvalidIndex {
+        /// Path containing the invalid segment.
+        path: Path,
+        /// Segment that could not be parsed as an index.
+        segment: String,
     },
     /// A value did not have the type requested by the caller.
     TypeMismatch {
@@ -203,6 +210,9 @@ impl fmt::Display for Error {
             }
             Self::NotAMap { path, actual } => {
                 write!(f, "path `{path}` is not an object (found `{actual}`)")
+            }
+            Self::InvalidIndex { path, segment } => {
+                write!(f, "path `{path}` uses invalid array index `{segment}`")
             }
             Self::TypeMismatch {
                 path,
