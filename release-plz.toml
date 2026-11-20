@@ -10,6 +10,9 @@ publish = true
 publish_timeout = "30m"
 release = true
 release_always = true
+# Only user-facing conventional commits trigger a version bump. Test, docs, and
+# CI maintenance commits remain in the history without opening release PRs.
+release_commits = "^(feat|fix|perf|refactor|revert)(\\([^)]*\\))?!?:"
 repo_url = "https://github.com/hushink/koanf-rs"
 semver_check = true
 
