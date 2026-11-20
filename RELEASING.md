@@ -31,8 +31,9 @@ switches to trusted publishing.
    enable **Allow GitHub Actions to create and approve pull requests** for the
    release PR job.
 3. Add a **temporary** repository secret named `CARGO_REGISTRY_TOKEN` with a
-   crates.io token that can publish new crates. This secret is only needed for
-   the initial crate creation.
+   crates.io token scoped to creating/publishing `koanf-core` and `koanf-rs`.
+   This secret is only needed for the initial crate creation; the bootstrap job
+   fails with a clear error if it is missing.
 4. Push the repository:
    ```bash
    git remote add origin https://github.com/hushink/koanf-rs.git
@@ -99,4 +100,7 @@ release-plz release --dry-run       # verify publishing, without uploading
   commit associated with the release PR.
 - The default `GITHUB_TOKEN` cannot trigger other workflows. Add a PAT or
   GitHub App token if CI must run on release PRs or releases.
+- The bootstrap and trusted-publishing release jobs share a non-canceling
+  `release-plz-publish` concurrency group, so overlapping workflow runs cannot
+  publish concurrently. Do not change it to cancel in progress.
 - Do not add a canceling concurrency group to the release job.

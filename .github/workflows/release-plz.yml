@@ -50,16 +50,29 @@ jobs:
     name: Release-plz bootstrap (temporary token)
     needs: release-check
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     if: needs.release-check.outputs.bootstrap == 'true' && github.repository_owner == 'hushink'
     permissions:
       contents: write
       pull-requests: read
+    concurrency:
+      group: release-plz-publish
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
+      - name: Require the temporary bootstrap token
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN is required until both crates exist on crates.io."
+            echo "Add a crates.io token scoped to creating koanf-core and koanf-rs as a repository secret, then re-run this workflow."
+            exit 1
+          fi
       - name: Bootstrap initial release
         uses: release-plz/action@1fb72a9583c3601c197b3bd6fc6ce50d58e28ef3 # v0.5.148
         with:
@@ -67,17 +80,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Temporary token: crates.io cannot create new crates via OIDC.
+          # Delete this secret after the first successful release.
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   release-plz-release:
     name: Release-plz release (trusted publishing)
     needs: release-check
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     if: needs.release-check.outputs.bootstrap == 'false' && github.repository_owner == 'hushink'
     permissions:
       contents: write
       pull-requests: read
       id-token: write
+    concurrency:
+      group: release-plz-publish
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
