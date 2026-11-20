@@ -748,8 +748,15 @@ mod dir_tests {
                     if snapshot.get::<u16>("value").ok() == Some(2)
             )
         });
+        eprintln!(
+            "koanf first phase done at {}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        );
 
-        fs::remove_dir_all(&nested).unwrap();
+        fs::remove_file(nested.join("20-extra.toml")).unwrap();
         recv_matching(&receiver, |event| {
             matches!(
                 event,

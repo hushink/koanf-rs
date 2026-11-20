@@ -238,6 +238,12 @@ impl Watchable for Dir {
             None,
             move |result: notify_debouncer_full::DebounceEventResult| match result {
                 Ok(events) => {
+                    for event in &events {
+                        eprintln!(
+                            "koanf dir event: kind={:?} paths={:?}",
+                            event.event.kind, event.event.paths
+                        );
+                    }
                     // Backends such as FSEvents may coalesce a nested change
                     // into an event on a directory with no config extension.
                     // Reload on any event for recursive watches and explicit
