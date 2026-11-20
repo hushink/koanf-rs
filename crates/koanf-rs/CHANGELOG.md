@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/hushink/koanf-rs/compare/koanf-rs-v0.1.0...koanf-rs-v0.1.1) - 2026-11-20
+
+### Fixed
+
+- *(watch)* canonicalize directory watch roots
+- *(watch)* reload on coalesced directory events
+
+### Other
+
+- *(watch)* remove temporary watcher tracing
+- *(watch)* remove the nested file instead of its directory
+- *(watch)* timestamp watcher delivery
+- *(watch)* trace reload dispatch
+- *(watch)* write nested config atomically
+- *(watch)* trace directory watcher events
+- *(watch)* report observed events on timeout
+
 ### Fixed
 
 - directory and glob watchers reload on any change under the watched tree, so
