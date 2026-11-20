@@ -1456,6 +1456,7 @@ impl ConfigInner {
         let id = watch.next_id;
         watch.next_id += 1;
         watch.channels.push((id, sender));
+        eprintln!("koanf add channel id={id}");
         if let Err(error) = self.ensure_watching(&mut watch, inner) {
             watch.channels.retain(|(channel_id, _)| *channel_id != id);
             return Err(error);
@@ -1573,6 +1574,11 @@ impl ConfigInner {
                 .map(|(id, sender)| (*id, sender.clone()))
                 .collect::<Vec<_>>()
         };
+        eprintln!(
+            "koanf broadcast callbacks={} channels={}",
+            callbacks.len(),
+            channels.len()
+        );
 
         for (_, callback) in callbacks {
             let event = event.clone();
@@ -1581,7 +1587,9 @@ impl ConfigInner {
 
         let mut dead = Vec::new();
         for (id, sender) in channels {
-            if sender.send(event.clone()).is_err() {
+            let sent = sender.send(event.clone()).is_ok();
+            eprintln!("koanf channel send id={id} sent={sent}");
+            if !sent {
                 dead.push(id);
             }
         }
