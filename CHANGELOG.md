@@ -13,7 +13,7 @@ Initial release.
 
 - Layered configuration with deterministic precedence and atomic rebuilds.
 - Ordered `Value`/`Map` model with JSON, TOML, and YAML formats, plus optional
-  dotenv, INI, and RON parsers.
+  JSON5, HCL, dotenv, INI, and RON parsers and renderers where supported.
 - Typed serde access: `deserialize`, `get`, `get_opt`, `get_or`, and
   `Section` views.
 - `KoanfSchema` derives for typed schemas, secret-path discovery, and schema

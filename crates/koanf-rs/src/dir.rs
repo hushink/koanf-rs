@@ -26,9 +26,9 @@ use notify::event::{EventKind, ModifyKind};
 /// Files are read in lexicographic relative-path order, so names like
 /// `10-base.toml` and `20-overrides.toml` provide explicit layering. The source
 /// is non-recursive unless [`Dir::recursive`] is used. By default only files
-/// with an enabled built-in extension (`.json`, `.toml`, `.yaml`, `.yml`,
-/// `.ini`, or `.ron`) or a `.env` filename are read; [`Dir::format`] applies one
-/// explicit format to every regular file instead.
+/// with an enabled built-in extension (`.json`, `.json5`, `.toml`, `.hcl`,
+/// `.yaml`, `.yml`, `.ini`, or `.ron`) or a `.env` filename are read;
+/// [`Dir::format`] applies one explicit format to every regular file instead.
 ///
 /// A missing directory is an error unless [`Dir::optional`] is used. Watching a
 /// directory requires the directory to exist when the watcher starts.

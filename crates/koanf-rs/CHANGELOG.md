@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - layered configuration facade with `Memory`/`ConfMap`, `Structs`, `Bytes`,
   `File`, `dir::Dir`, `glob::Glob`, `Env`, `Args`, HTTP(S), Consul KV, and
   Vault KV sources
-- JSON, TOML, and YAML formats, plus optional dotenv, INI, and RON parsers
+- JSON, TOML, and YAML formats, plus optional JSON5, HCL, dotenv, INI, and RON
+  parsers; JSON5 and HCL also render
 - `KoanfSchema` derive macro with secret-path discovery and schema validation
 - deterministic directory layering with optional recursive traversal and watch
 - glob-pattern matching under a root directory with recursive watch

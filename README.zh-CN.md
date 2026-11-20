@@ -9,14 +9,14 @@
 
 - 多配置源：内存、类型化默认值、文件与目录、glob 模式、环境变量、命令行
   参数、内联字节、HTTP(S)、Consul KV、Vault KV。
-- 多格式：JSON、TOML、YAML，可选 dotenv、INI 与 RON。
+- 多格式：JSON、TOML、YAML，可选 JSON5、HCL、dotenv、INI 与 RON。
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
   路径作用域的 `Section` 视图。
 - 类型化 schema：敏感路径与验证可通过 derive 生成。
 - 不可变、`Arc` 支撑的快照，保证多键读取的一致性。
 - 文件与目录监听：全量重建、变更集、失败时保留最后一个可用快照。
-- 快照与 `Section` 可渲染回 JSON、TOML、YAML。
+- 快照与 `Section` 可渲染回 JSON、JSON5、TOML、HCL、YAML 与 RON。
 - 可配置的快照验证钩子。
 - 基于路径的 Debug 脱敏，覆盖 watch/变更输出。
 - 可选的 `tracing` 埋点，覆盖 reload、源变更和 watch 错误。
@@ -252,7 +252,7 @@ println!("{config:?}"); // database.password 显示为 "***"
 
 ### 渲染
 
-JSON、TOML、YAML、RON 格式可以把完整配置或 `Section` 渲染回字节：
+JSON、JSON5、TOML、HCL、YAML、RON 格式可以把完整配置或 `Section` 渲染回字节：
 
 ```rust
 use koanf_rs::format::{Json, Yaml};
@@ -419,7 +419,9 @@ let config = Config::builder().watched(source).build()?;
 | 格式 | feature | 说明 |
 |---|---|---|
 | `format::Json` | `json` | 严格 JSON；保留对象顺序 |
+| `format::Json5` | `json5` | 支持注释、无引号键、单引号、尾随逗号与十六进制数字 |
 | `format::Toml` | `toml` | TOML datetime 转为字符串 |
+| `format::Hcl` | `hcl` | HCL attribute 与 block；表达式保留为插值字符串 |
 | `format::Yaml` | `yaml` | 标准标量/序列/映射；自定义 tag 非一等支持 |
 | `format::Dotenv` | `dotenv` | 扁平字符串 map；支持引号与 `${VAR}` 替换；仅解析 |
 | `format::Ini` | `ini` | 全局键位于根；section 嵌套在名称下；仅解析 |
@@ -434,7 +436,9 @@ let config = Config::builder().watched(source).build()?;
 |---|---|---|
 | `derive` | 是 | 来自 `koanf-derive` 的 `KoanfSchema` derive macro |
 | `json` | 是 | `format::Json` |
+| `json5` | 否 | `format::Json5` 与 `.json5` 识别 |
 | `toml` | 是 | `format::Toml` |
+| `hcl` | 否 | `format::Hcl` 与 `.hcl` 识别 |
 | `yaml` | 是 | `format::Yaml` |
 | `dotenv` | 否 | `format::Dotenv`；也会识别 `.env` 文件名 |
 | `ini` | 否 | `format::Ini` 与 `.ini` 识别 |

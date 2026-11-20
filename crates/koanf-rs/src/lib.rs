@@ -41,8 +41,9 @@
 //! # Features
 //!
 //! The default features enable `json`, `toml`, `yaml`, `file`, `env`, `args`,
-//! `watch`, and `derive`. The optional `dotenv`, `ini`, and `ron` features add those
-//! parsers, `glob` adds the glob-pattern source, `async` adds the watch stream,
+//! `watch`, and `derive`. The optional `json5`, `hcl`, `dotenv`, `ini`, and
+//! `ron` features add those parsers, `glob` adds the glob-pattern source,
+//! `async` adds the watch stream,
 //! `http` adds the HTTP(S) source, `consul` adds the Consul KV source, and
 //! `vault` adds the Vault KV source. `tracing` enables instrumentation, and
 //! `atomic-save` enables atomic file writes. `AsyncSource` and `build_async` are
@@ -74,7 +75,9 @@ pub mod env;
 pub mod file;
 #[cfg(any(
     feature = "json",
+    feature = "json5",
     feature = "toml",
+    feature = "hcl",
     feature = "yaml",
     feature = "dotenv",
     feature = "ini",

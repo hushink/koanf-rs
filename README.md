@@ -11,7 +11,8 @@ implementation**, not an official port.
 - Multiple sources: memory, typed defaults, files and directories, glob
   patterns, environment variables, CLI arguments, inline bytes, HTTP(S),
   Consul KV, and Vault KV.
-- Multiple formats: JSON, TOML, and YAML, with optional dotenv, INI, and RON.
+- Multiple formats: JSON, TOML, and YAML, with optional JSON5, HCL, dotenv,
+  INI, and RON.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
 - Typed access through serde: `deserialize::<T>()`, `get::<T>(path)`, and
@@ -20,7 +21,7 @@ implementation**, not an official port.
 - Immutable, `Arc`-backed snapshots for consistent multi-key reads.
 - File and directory watching with full rebuilds, change sets, and
   last-known-good snapshots.
-- Snapshot and section rendering back to JSON, TOML, or YAML.
+- Snapshot and section rendering back to JSON, JSON5, TOML, HCL, YAML, or RON.
 - Configurable snapshot validation hooks.
 - Path-based debug redaction for secrets and watch/change output.
 - Optional `tracing` instrumentation for reloads, source changes, and watch errors.
@@ -264,8 +265,8 @@ redacted.
 
 ### Rendering
 
-The JSON, TOML, YAML, and RON formats render complete configurations and
-sections back to bytes:
+The JSON, JSON5, TOML, HCL, YAML, and RON formats render complete
+configurations and sections back to bytes:
 
 ```rust
 use koanf_rs::format::{Json, Yaml};
@@ -439,7 +440,9 @@ treated as an empty layer with `.optional()`.
 | Format | Feature | Notes |
 |---|---|---|
 | `format::Json` | `json` | Strict JSON; object order preserved |
+| `format::Json5` | `json5` | JSON5 comments, unquoted keys, single quotes, trailing commas, and hex numbers |
 | `format::Toml` | `toml` | TOML datetimes become strings |
+| `format::Hcl` | `hcl` | HCL attributes and blocks; expressions become interpolation strings |
 | `format::Yaml` | `yaml` | Standard scalars/sequences/mappings; custom tags are not first-class |
 | `format::Dotenv` | `dotenv` | Flat string map; quoting and `${VAR}` substitution; parse-only |
 | `format::Ini` | `ini` | Global keys at the root; sections nest under their names; parse-only |
@@ -455,7 +458,9 @@ coercion applies when a numeric or boolean target is requested.
 |---|---|---|
 | `derive` | yes | `KoanfSchema` derive macro from `koanf-derive` |
 | `json` | yes | `format::Json` |
+| `json5` | no | `format::Json5` and `.json5` detection |
 | `toml` | yes | `format::Toml` |
+| `hcl` | no | `format::Hcl` and `.hcl` detection |
 | `yaml` | yes | `format::Yaml` |
 | `dotenv` | no | `format::Dotenv`; also detects `.env` file names |
 | `ini` | no | `format::Ini` and `.ini` detection |

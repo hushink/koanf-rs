@@ -2,7 +2,7 @@
 //!
 //! Each format is gated behind its feature. All formats parse bytes into the
 //! ordered [`Value`] tree; the source is responsible for requiring an object
-//! root. JSON, TOML, YAML, and RON also support rendering.
+//! root. JSON, JSON5, TOML, HCL, YAML, and RON also support rendering.
 
 #[cfg(any(feature = "dotenv", feature = "ini"))]
 use koanf_core::Map;
@@ -25,6 +25,33 @@ impl Format for Json {
 
     fn render(&self, value: &Value) -> Result<Vec<u8>> {
         serde_json::to_vec_pretty(value).map_err(|error| Error::render_error("json", error))
+    }
+}
+
+/// JSON5 format.
+///
+/// Accepts comments, unquoted keys, single-quoted strings, trailing commas,
+/// hexadecimal numbers, and other JSON5 extensions.
+#[cfg(feature = "json5")]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Json5;
+
+#[cfg(feature = "json5")]
+impl Format for Json5 {
+    fn name(&self) -> &str {
+        "json5"
+    }
+
+    fn parse(&self, bytes: &[u8]) -> Result<Value> {
+        let text = std::str::from_utf8(bytes)
+            .map_err(|error| Error::format_error("json5", None, error))?;
+        json5::from_str(text).map_err(|error| Error::format_error("json5", None, error))
+    }
+
+    fn render(&self, value: &Value) -> Result<Vec<u8>> {
+        json5::to_string(value)
+            .map(String::into_bytes)
+            .map_err(|error| Error::render_error("json5", error))
     }
 }
 
@@ -76,6 +103,73 @@ fn toml_value_to_value(value: toml::Value) -> Value {
             Value::Array(values.into_iter().map(toml_value_to_value).collect())
         }
         toml::Value::Table(table) => toml_table_to_value(table),
+    }
+}
+
+/// HCL (HashiCorp Configuration Language) format.
+///
+/// Attributes become object keys. A single block becomes a nested object,
+/// repeated unlabeled blocks become an array, and block labels become nested
+/// object keys. HCL expressions and templates that cannot be represented as
+/// data are preserved as interpolation strings such as `"${var.name}"`.
+/// Numbers outside the `i64`/`u64` ranges are converted to `f64`.
+///
+/// Rendering emits attributes and object expressions; blocks are not
+/// reconstructed. Interpolation-looking strings are escaped so they round-trip
+/// as literal strings.
+#[cfg(feature = "hcl")]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Hcl;
+
+#[cfg(feature = "hcl")]
+impl Format for Hcl {
+    fn name(&self) -> &str {
+        "hcl"
+    }
+
+    fn parse(&self, bytes: &[u8]) -> Result<Value> {
+        let text =
+            std::str::from_utf8(bytes).map_err(|error| Error::format_error("hcl", None, error))?;
+        let value: hcl::Value =
+            hcl::from_str(text).map_err(|error| Error::format_error("hcl", None, error))?;
+        Ok(hcl_value_to_value(value))
+    }
+
+    fn render(&self, value: &Value) -> Result<Vec<u8>> {
+        hcl::to_string(value)
+            .map(String::into_bytes)
+            .map_err(|error| Error::render_error("hcl", error))
+    }
+}
+
+#[cfg(feature = "hcl")]
+fn hcl_value_to_value(value: hcl::Value) -> Value {
+    match value {
+        hcl::Value::Null => Value::Null,
+        hcl::Value::Bool(value) => Value::Bool(value),
+        hcl::Value::Number(value) => hcl_number_to_value(value),
+        hcl::Value::String(value) => Value::String(value),
+        hcl::Value::Array(values) => {
+            Value::Array(values.into_iter().map(hcl_value_to_value).collect())
+        }
+        hcl::Value::Object(map) => Value::Map(
+            map.into_iter()
+                .map(|(key, value)| (key, hcl_value_to_value(value)))
+                .collect(),
+        ),
+    }
+}
+
+#[cfg(feature = "hcl")]
+fn hcl_number_to_value(value: hcl::Number) -> Value {
+    if let Some(value) = value.as_u64() {
+        Value::from(value)
+    } else if let Some(value) = value.as_i64() {
+        Value::from(value)
+    } else if let Some(value) = value.as_f64() {
+        Value::from(value)
+    } else {
+        Value::String(value.to_string())
     }
 }
 

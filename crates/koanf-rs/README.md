@@ -10,7 +10,8 @@ implementation**, not an official port.
 
 - Multiple sources: memory, typed defaults, files, environment variables, CLI
   arguments, and inline bytes.
-- Multiple formats: JSON, TOML, and YAML.
+- Multiple formats: JSON, TOML, and YAML, with optional JSON5, HCL, dotenv,
+  INI, and RON.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
 - Typed access through serde: `deserialize::<T>()`, `get::<T>(path)`, and
@@ -235,8 +236,13 @@ and emits an event only when the content actually changes.
 | Format | Feature | Notes |
 |---|---|---|
 | `format::Json` | `json` | Strict JSON; object order preserved |
+| `format::Json5` | `json5` | JSON5 comments, unquoted keys, single quotes, trailing commas, and hex numbers |
 | `format::Toml` | `toml` | TOML datetimes become strings |
+| `format::Hcl` | `hcl` | HCL attributes and blocks; expressions become interpolation strings |
 | `format::Yaml` | `yaml` | Standard scalars/sequences/mappings; custom tags are not first-class |
+| `format::Dotenv` | `dotenv` | Flat string map; parse-only |
+| `format::Ini` | `ini` | Global keys at the root; sections nest under their names; parse-only |
+| `format::Ron` | `ron` | Rusty Object Notation; render and parse |
 
 All formats parse into the same ordered `Value` tree. The root of every source
 must be an object.
@@ -246,9 +252,14 @@ must be an object.
 | Feature | Default | Enables |
 |---|---|---|
 | `json` | yes | `format::Json` |
+| `json5` | no | `format::Json5` and `.json5` detection |
 | `toml` | yes | `format::Toml` |
+| `hcl` | no | `format::Hcl` and `.hcl` detection |
 | `yaml` | yes | `format::Yaml` |
-| `file` | yes | `file::File` |
+| `dotenv` | no | `format::Dotenv` and `.env` detection |
+| `ini` | no | `format::Ini` and `.ini` detection |
+| `ron` | no | `format::Ron` and `.ron` detection |
+| `file` | yes | `file::File` and `dir::Dir` |
 | `env` | yes | `env::Env` |
 | `args` | yes | `args::Args` |
 | `watch` | yes | File watching via `notify`; implies `file` |
@@ -268,8 +279,9 @@ extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.
   types when requested (`get::<u16>`, serde fields). `Coercion::Strict` disables
   this. String fields never receive converted values.
 - **Paths**: `get("server.port")` splits on `.`. Use `Path::key("a.b")` for a
-  literal dotted key. Arrays are read as whole values; numeric array indexing is
-  not part of v1.
+  literal dotted key. Numeric segments index arrays when traversal reaches one
+  (`servers.0.host`); object keys such as `"0"` remain ordinary keys. Array
+  overrides must replace the whole array.
 - **Errors**: a single non-exhaustive `Error` enum with source, format, path,
   coercion, watch, and serialization context. The library does not panic on user
   input and does not provide `expect_*` helpers.
@@ -287,11 +299,12 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 ## Status
 
-v0.1 focuses on local sources, three formats, typed access, and file watching.
+v0.1 focuses on layered sources, multiple formats, typed access, watching,
+validation, redaction, and rendering.
 
-Not in v1: remote sources (HTTP/S3/etcd/consul/vault), multi-file/glob sources,
-async adapters, a derive schema macro, validation hooks, render/save APIs,
-`no_std`/WASM, array-index paths, dynamic layer removal, or secret redaction.
+See the [repository README](https://github.com/hushink/koanf-rs#readme) for the
+complete source and feature list, `no_std`/WASM support, and current
+limitations.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 

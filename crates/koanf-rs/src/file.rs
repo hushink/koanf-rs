@@ -19,10 +19,11 @@ use koanf_core::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
 
 /// A single-file configuration source.
 ///
-/// The format is inferred from the extension (`.json`, `.toml`, `.yaml`,
-/// `.yml`, `.ini`, or `.ron`) or from a `.env` filename, when the corresponding
-/// format feature is enabled. Use [`File::format`] to override inference. A missing
-/// file is an error unless [`File::optional`] is used.
+/// The format is inferred from the extension (`.json`, `.json5`, `.toml`,
+/// `.hcl`, `.yaml`, `.yml`, `.ini`, or `.ron`) or from a `.env` filename, when
+/// the corresponding format feature is enabled. Use [`File::format`] to
+/// override inference. A missing file is an error unless [`File::optional`] is
+/// used.
 #[derive(Clone)]
 pub struct File {
     path: PathBuf,
@@ -90,7 +91,9 @@ pub(crate) fn known_extension(path: &StdPath) -> bool {
         .as_deref()
     {
         Some("json") if cfg!(feature = "json") => true,
+        Some("json5") if cfg!(feature = "json5") => true,
         Some("toml") if cfg!(feature = "toml") => true,
+        Some("hcl") if cfg!(feature = "hcl") => true,
         Some("yaml" | "yml") if cfg!(feature = "yaml") => true,
         Some("ini") if cfg!(feature = "ini") => true,
         Some("ron") if cfg!(feature = "ron") => true,
@@ -128,7 +131,9 @@ pub(crate) fn format_for_path(
         .unwrap_or_default();
     match extension.as_str() {
         "json" => json_format(),
+        "json5" => json5_format(),
         "toml" => toml_format(),
+        "hcl" => hcl_format(),
         "yaml" | "yml" => yaml_format(),
         "ini" => ini_format(),
         "ron" => ron_format(),
@@ -196,6 +201,19 @@ fn json_format() -> Result<Arc<dyn Format>> {
     })
 }
 
+#[cfg(feature = "json5")]
+fn json5_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Json5))
+}
+
+#[cfg(not(feature = "json5"))]
+fn json5_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "json5".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
 #[cfg(feature = "toml")]
 fn toml_format() -> Result<Arc<dyn Format>> {
     Ok(Arc::new(crate::format::Toml))
@@ -205,6 +223,19 @@ fn toml_format() -> Result<Arc<dyn Format>> {
 fn toml_format() -> Result<Arc<dyn Format>> {
     Err(Error::Unsupported {
         format: "toml".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+#[cfg(feature = "hcl")]
+fn hcl_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Hcl))
+}
+
+#[cfg(not(feature = "hcl"))]
+fn hcl_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "hcl".to_owned(),
         operation: "format feature not enabled",
     })
 }

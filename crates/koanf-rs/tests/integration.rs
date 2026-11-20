@@ -1124,6 +1124,173 @@ mod ron_tests {
     }
 }
 
+#[cfg(feature = "json5")]
+mod json5_tests {
+    use koanf_rs::bytes::Bytes;
+    use koanf_rs::prelude::*;
+
+    const CONFIG: &[u8] = br#"
+        {
+            // JSON5 extension: comments, unquoted keys, single quotes,
+            // trailing commas, and hexadecimal numbers.
+            server: {
+                host: 'localhost',
+                port: 0x1F90,
+            },
+            enabled: true,
+            items: [1, 2, 3,],
+        }
+    "#;
+
+    #[test]
+    fn parses_and_renders_json5() {
+        let config = Config::builder()
+            .source(Bytes::new(CONFIG, koanf_rs::format::Json5))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 8080);
+        assert!(config.get::<bool>("enabled").unwrap());
+        assert_eq!(config.get::<u8>("items.2").unwrap(), 3);
+
+        let rendered = config.render(&koanf_rs::format::Json5).unwrap();
+        let roundtrip = Config::builder()
+            .source(Bytes::new(rendered, koanf_rs::format::Json5))
+            .build()
+            .unwrap();
+        assert_eq!(roundtrip.get::<u16>("server.port").unwrap(), 8080);
+        assert_eq!(roundtrip.get::<String>("server.host").unwrap(), "localhost");
+    }
+
+    #[test]
+    fn invalid_json5_is_a_format_error() {
+        let error = koanf_rs::format::Json5.parse(b"{ server: ").unwrap_err();
+        assert!(matches!(error, Error::Format { .. }));
+    }
+
+    #[cfg(feature = "file")]
+    #[test]
+    fn detects_json5_by_extension() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json5");
+        std::fs::write(&path, CONFIG).unwrap();
+
+        let config = Config::builder()
+            .source(koanf_rs::file::File::new(path))
+            .build()
+            .unwrap();
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 8080);
+    }
+}
+
+#[cfg(feature = "hcl")]
+mod hcl_tests {
+    use koanf_rs::bytes::Bytes;
+    use koanf_rs::prelude::*;
+
+    const CONFIG: &[u8] = br#"
+        name = "demo"
+        port = 8080
+        ratio = 1.5
+        enabled = true
+        nothing = null
+
+        server {
+            host = "localhost"
+            tags = ["api", "public"]
+        }
+
+        item {
+            name = "first"
+        }
+
+        item {
+            name = "second"
+        }
+
+        resource "aws_s3_bucket" "logs" {
+            acl = "private"
+        }
+
+        path = var.root
+    "#;
+
+    #[test]
+    fn parses_attributes_blocks_and_expressions() {
+        let config = Config::builder()
+            .source(Bytes::new(CONFIG, koanf_rs::format::Hcl))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.get::<String>("name").unwrap(), "demo");
+        assert_eq!(config.get::<u16>("port").unwrap(), 8080);
+        assert_eq!(config.get::<f64>("ratio").unwrap(), 1.5);
+        assert!(config.get::<bool>("enabled").unwrap());
+        assert!(config.get::<Option<String>>("nothing").unwrap().is_none());
+        assert_eq!(config.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(config.get::<String>("server.tags.1").unwrap(), "public");
+        assert_eq!(config.get::<String>("item.0.name").unwrap(), "first");
+        assert_eq!(config.get::<String>("item.1.name").unwrap(), "second");
+        assert_eq!(
+            config
+                .get::<String>("resource.aws_s3_bucket.logs.acl")
+                .unwrap(),
+            "private"
+        );
+        assert_eq!(config.get::<String>("path").unwrap(), "${var.root}");
+    }
+
+    #[test]
+    fn renders_a_round_trippable_value_tree() {
+        let config = Config::builder()
+            .source(Bytes::new(CONFIG, koanf_rs::format::Hcl))
+            .build()
+            .unwrap();
+
+        let rendered = config.render(&koanf_rs::format::Hcl).unwrap();
+        let roundtrip = Config::builder()
+            .source(Bytes::new(rendered, koanf_rs::format::Hcl))
+            .build()
+            .unwrap();
+        assert_eq!(roundtrip.get::<u16>("port").unwrap(), 8080);
+        assert!(
+            roundtrip
+                .get::<Option<String>>("nothing")
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(roundtrip.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(roundtrip.get::<String>("item.1.name").unwrap(), "second");
+        assert_eq!(
+            roundtrip
+                .get::<String>("resource.aws_s3_bucket.logs.acl")
+                .unwrap(),
+            "private"
+        );
+    }
+
+    #[test]
+    fn invalid_hcl_is_a_format_error() {
+        let error = koanf_rs::format::Hcl.parse(b"server {").unwrap_err();
+        assert!(matches!(error, Error::Format { .. }));
+    }
+
+    #[cfg(feature = "file")]
+    #[test]
+    fn detects_hcl_by_extension() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.hcl");
+        std::fs::write(&path, CONFIG).unwrap();
+
+        let config = Config::builder()
+            .source(koanf_rs::file::File::new(path))
+            .build()
+            .unwrap();
+        assert_eq!(config.get::<u16>("port").unwrap(), 8080);
+    }
+}
+
 #[cfg(feature = "ini")]
 mod ini_tests {
     use koanf_rs::bytes::Bytes;

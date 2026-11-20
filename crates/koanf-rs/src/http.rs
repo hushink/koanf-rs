@@ -288,6 +288,19 @@ impl Http {
             {
                 return json_format();
             }
+            if media_type == "application/json5"
+                || media_type == "text/json5"
+                || media_type.ends_with("+json5")
+            {
+                return json5_format();
+            }
+            if matches!(
+                media_type.as_str(),
+                "application/hcl" | "application/x-hcl" | "text/hcl" | "text/x-hcl"
+            ) || media_type.ends_with("+hcl")
+            {
+                return hcl_format();
+            }
             if media_type == "application/toml"
                 || media_type == "text/toml"
                 || media_type.ends_with("+toml")
@@ -310,7 +323,9 @@ impl Http {
             .unwrap_or_default();
         match extension.as_str() {
             "json" => json_format(),
+            "json5" => json5_format(),
             "toml" => toml_format(),
+            "hcl" => hcl_format(),
             "yaml" | "yml" => yaml_format(),
             _ => Err(Error::UnknownFormat {
                 path: PathBuf::from(self.url.as_str()),
@@ -333,6 +348,19 @@ fn json_format() -> Result<Arc<dyn Format>> {
     })
 }
 
+#[cfg(feature = "json5")]
+fn json5_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Json5))
+}
+
+#[cfg(not(feature = "json5"))]
+fn json5_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "json5".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
 #[cfg(feature = "toml")]
 fn toml_format() -> Result<Arc<dyn Format>> {
     Ok(Arc::new(crate::format::Toml))
@@ -342,6 +370,19 @@ fn toml_format() -> Result<Arc<dyn Format>> {
 fn toml_format() -> Result<Arc<dyn Format>> {
     Err(Error::Unsupported {
         format: "toml".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+#[cfg(feature = "hcl")]
+fn hcl_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Hcl))
+}
+
+#[cfg(not(feature = "hcl"))]
+fn hcl_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "hcl".to_owned(),
         operation: "format feature not enabled",
     })
 }
