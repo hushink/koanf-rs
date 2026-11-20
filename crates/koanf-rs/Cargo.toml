@@ -13,8 +13,8 @@ keywords = ["config", "configuration", "settings", "koanf", "watch"]
 categories = ["config"]
 
 [dependencies]
-koanf-core = { path = "../koanf-core", version = "0.1.1", default-features = false, features = ["std"] }
-koanf-derive = { path = "../koanf-derive", version = "0.1.1", optional = true }
+koanf-core = { path = "../koanf-core", version = "0.1.2", default-features = false, features = ["std"] }
+koanf-derive = { path = "../koanf-derive", version = "0.1.2", optional = true }
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
 toml = { workspace = true, optional = true }
