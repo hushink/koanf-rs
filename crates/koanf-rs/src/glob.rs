@@ -6,7 +6,7 @@
 use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
 
-use glob_pattern::Pattern;
+use glob_pattern::{MatchOptions, Pattern};
 use koanf_core::{Error, Format, Map, MergeOptions, Result, Source, merge_map};
 
 use crate::dir::collect_files;
@@ -23,10 +23,11 @@ use notify::event::{EventKind, ModifyKind};
 /// A glob-pattern-backed configuration source.
 ///
 /// The pattern is matched against paths relative to `root`; use `/` as the
-/// separator in patterns. Matching files are merged in lexicographic
-/// relative-path order, so later matches override earlier ones. By default only
-/// files with an enabled built-in extension are read; [`Glob::format`] applies
-/// one explicit format to every matching regular file instead.
+/// separator in patterns. `*` does not cross a separator; use `**` for
+/// recursive matches. Matching files are merged in lexicographic relative-path
+/// order, so later matches override earlier ones. By default only files with an
+/// enabled built-in extension are read; [`Glob::format`] applies one explicit
+/// format to every matching regular file instead.
 ///
 /// A missing root is an error unless [`Glob::optional`] is used. Watching
 /// requires the root directory to exist when the watcher starts.
@@ -210,15 +211,24 @@ impl Watchable for Glob {
     }
 }
 
+const MATCH_OPTIONS: MatchOptions = MatchOptions {
+    case_sensitive: true,
+    require_literal_separator: true,
+    require_literal_leading_dot: false,
+};
+
 fn matches_relative(pattern: &Pattern, relative: &StdPath) -> bool {
     #[cfg(windows)]
     {
-        relative
-            .to_str()
-            .is_some_and(|path| pattern.matches(path) || pattern.matches(&path.replace('\\', "/")))
+        relative.to_str().is_some_and(|path| {
+            pattern.matches_with(path, MATCH_OPTIONS)
+                || pattern.matches_with(&path.replace('\\', "/"), MATCH_OPTIONS)
+        })
     }
     #[cfg(not(windows))]
     {
-        pattern.matches_path(relative)
+        relative
+            .to_str()
+            .is_some_and(|path| pattern.matches_with(path, MATCH_OPTIONS))
     }
 }

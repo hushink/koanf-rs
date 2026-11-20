@@ -131,8 +131,9 @@ one explicit format to every regular file instead. Call `.recursive()` to
 include subdirectories; directory symlinks are not followed.
 
 `glob::Glob` selects files with a glob pattern relative to a root directory,
-for example `Glob::new("config", "**/*.toml")`. Matches are merged in
-lexicographic relative-path order.
+for example `Glob::new("config", "**/*.toml")`. `*` does not cross directory
+separators; use `**` for recursion. Matches are merged in lexicographic
+relative-path order.
 
 ## Reading values
 

@@ -407,6 +407,12 @@ mod glob_tests {
         assert!(!only_override.contains("server.host"));
         assert!(!only_override.contains("nested"));
 
+        let root_only = Config::builder()
+            .source(Glob::new(directory.path(), "*.toml").unwrap())
+            .build()
+            .unwrap();
+        assert!(!root_only.contains("nested"));
+
         let all = Config::builder()
             .source(Glob::new(directory.path(), "**/*.toml").unwrap())
             .build()
