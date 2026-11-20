@@ -93,6 +93,11 @@
   color: "#c5def5"
   description: "CI, release automation, and repository tooling"
 
+# Automation labels used by Dependabot.
+- name: "dependencies"
+  color: "#0366d6"
+  description: "Dependency and toolchain updates"
+
 # Contributor-facing labels. Keep the GitHub-standard names.
 - name: "good first issue"
   color: "#7057ff"
