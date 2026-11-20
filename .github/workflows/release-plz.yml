@@ -4,6 +4,9 @@ on:
   push:
     # Keep this in sync with the repository's default branch.
     branches: [master, main]
+  # Useful for retrying the initial 0.1.0 release after adding the crates.io
+  # token, or for re-running a failed release.
+  workflow_dispatch:
 
 permissions:
   contents: write
