@@ -129,6 +129,7 @@ impl Source for Dir {
             &mut files,
         )?;
         files.sort_by(|(left, _), (right, _)| left.cmp(right));
+        eprintln!("koanf dir read files={:?}", files);
 
         let mut merged = Map::new();
         for (_, path) in files {

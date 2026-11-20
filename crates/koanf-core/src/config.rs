@@ -1417,6 +1417,7 @@ impl ConfigInner {
             state.snapshot = new_snapshot.clone();
         }
         let changes = old.diff(&new_snapshot);
+        eprintln!("koanf reload changes={}", changes.len());
         if changes.is_empty() {
             Ok(None)
         } else {
@@ -1620,6 +1621,7 @@ impl ConfigInner {
 #[cfg(feature = "std")]
 fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>) {
     while let Ok(command) = receiver.recv() {
+        eprintln!("koanf dispatch command received");
         let Some(inner) = inner.upgrade() else {
             break;
         };
@@ -1651,6 +1653,7 @@ fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>
 #[cfg(feature = "std")]
 fn watch_callback(sender: Sender<DispatchCommand>) -> WatchCallback {
     Arc::new(move |signal| {
+        eprintln!("koanf watch signal received");
         let command = match signal {
             WatchSignal::Changed => DispatchCommand::SourceChanged,
             WatchSignal::Error(error) => DispatchCommand::SourceError(error),
