@@ -485,6 +485,21 @@ mod dir_tests {
         assert_eq!(config.get::<Vec<u16>>("items").unwrap(), vec![1, 2]);
     }
 
+    #[cfg(all(feature = "dotenv", feature = "ini"))]
+    #[test]
+    fn detects_dotenv_and_ini_files() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join(".env"), "DOTENV_VALUE=1\n").unwrap();
+        fs::write(directory.path().join("config.ini"), "[server]\nport = 2\n").unwrap();
+
+        let config = Config::builder()
+            .source(Dir::new(directory.path()))
+            .build()
+            .unwrap();
+        assert_eq!(config.get::<u16>("DOTENV_VALUE").unwrap(), 1);
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 2);
+    }
+
     #[cfg(feature = "toml")]
     #[test]
     fn recursive_reads_nested_files_in_relative_path_order() {
