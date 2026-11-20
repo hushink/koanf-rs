@@ -11,7 +11,7 @@ body:
         - Search existing issues first.
         - Remove tokens, passwords, and other secrets from configuration, logs,
           and reproduction code.
-        - Do not open a public issue for a security vulnerability.
+        - Do not include exploit details or sensitive data in a public issue.
 
   - type: textarea
     id: summary
