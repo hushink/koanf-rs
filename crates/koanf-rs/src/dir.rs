@@ -18,8 +18,6 @@ use std::time::Duration;
 
 #[cfg(feature = "watch")]
 use koanf_core::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
-#[cfg(feature = "watch")]
-use notify::event::{EventKind, ModifyKind};
 
 /// A directory-backed configuration source.
 ///
@@ -235,21 +233,16 @@ impl Watchable for Dir {
             None,
             move |result: notify_debouncer_full::DebounceEventResult| match result {
                 Ok(events) => {
-                    let relevant = events.iter().any(|event| {
-                        // Recursive watchers may only report a directory removal
-                        // or rename on the directory itself, which has no config
-                        // extension. Reload on any tree-shape change.
-                        let tree_change = recursive
-                            && matches!(
-                                event.event.kind,
-                                EventKind::Create(_)
-                                    | EventKind::Remove(_)
-                                    | EventKind::Modify(ModifyKind::Name(_))
-                            );
-                        tree_change
+                    // Backends such as FSEvents may coalesce a nested change
+                    // into an event on a directory with no config extension.
+                    // Reload on any event for recursive watches and explicit
+                    // formats; otherwise require a known extension.
+                    let relevant = !events.is_empty()
+                        && (recursive
                             || has_explicit_format
-                            || event.event.paths.iter().any(|path| known_extension(path))
-                    });
+                            || events.iter().any(|event| {
+                                event.event.paths.iter().any(|path| known_extension(path))
+                            }));
                     if relevant {
                         callback_for_events(WatchSignal::Changed);
                     }

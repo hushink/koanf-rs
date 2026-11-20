@@ -29,10 +29,7 @@ jobs:
         with:
           targets: thumbv7em-none-eabihf, wasm32-unknown-unknown
       - name: Test before publishing
-        # The compile-fail doctest still runs; the trybuild UI test is skipped
-        # here because its expected stderr is compiler/platform-sensitive and
-        # is already exercised by the CI workflow.
-        run: cargo test --workspace --all-features --locked -- --skip watched_requires_watchable
+        run: cargo test --workspace --all-features --locked
       - name: Test no_std and WebAssembly builds
         run: |
           cargo test -p koanf-core --no-default-features --locked

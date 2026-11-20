@@ -723,6 +723,9 @@ mod dir_tests {
             .unwrap();
         let (guard, receiver) = config.watch_channel().unwrap();
 
+        // Give backends such as FSEvents time to start delivering events.
+        std::thread::sleep(Duration::from_millis(250));
+
         fs::write(nested.join("20-extra.toml"), "value = 2\n").unwrap();
         recv_matching(&receiver, |event| {
             matches!(

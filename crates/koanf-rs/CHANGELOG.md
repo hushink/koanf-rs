@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- directory and glob watchers reload on any change under the watched tree, so
+  coalesced macOS FSEvents notifications are not missed
+
+### Other
+
+- remove the compiler-sensitive trybuild UI check; the compile-fail restriction
+  remains covered by a doctest
+
 ## [0.1.0](https://github.com/hushink/koanf-rs/releases/tag/koanf-rs-v0.1.0) - 2026-11-21
 
 ### Added

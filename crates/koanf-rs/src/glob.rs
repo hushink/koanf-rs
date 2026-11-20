@@ -17,8 +17,6 @@ use std::time::Duration;
 
 #[cfg(feature = "watch")]
 use koanf_core::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
-#[cfg(feature = "watch")]
-use notify::event::{EventKind, ModifyKind};
 
 /// A glob-pattern-backed configuration source.
 ///
@@ -156,8 +154,6 @@ impl Watchable for Glob {
     fn watch(&self, callback: WatchCallback) -> Result<Box<dyn WatchSubscription>> {
         let watch_root = std::fs::canonicalize(&self.root).unwrap_or_else(|_| self.root.clone());
         let root_for_events = watch_root.clone();
-        let pattern = self.pattern.clone();
-        let has_explicit_format = self.format.is_some();
         let callback_for_events = Arc::clone(&callback);
         let description = self.name.clone();
 
@@ -166,21 +162,15 @@ impl Watchable for Glob {
             None,
             move |result: notify_debouncer_full::DebounceEventResult| match result {
                 Ok(events) => {
+                    // Reload on any change under the root. Backends such as
+                    // FSEvents can coalesce nested changes into a directory
+                    // event that does not carry a matching path.
                     let relevant = events.iter().any(|event| {
-                        let tree_change = matches!(
-                            event.event.kind,
-                            EventKind::Create(_)
-                                | EventKind::Remove(_)
-                                | EventKind::Modify(ModifyKind::Name(_))
-                        );
-                        event.event.paths.iter().any(|path| {
-                            let Ok(relative) = path.strip_prefix(&root_for_events) else {
-                                return false;
-                            };
-                            tree_change
-                                || ((has_explicit_format || known_extension(path))
-                                    && matches_relative(&pattern, relative))
-                        })
+                        event
+                            .event
+                            .paths
+                            .iter()
+                            .any(|path| path.strip_prefix(&root_for_events).is_ok())
                     });
                     if relevant {
                         callback_for_events(WatchSignal::Changed);
