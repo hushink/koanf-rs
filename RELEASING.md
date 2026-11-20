@@ -2,60 +2,58 @@
 
 Releases are automated with [release-plz](https://release-plz.dev) and
 [crates.io trusted publishing](https://crates.io/docs/trusted-publishing)
-(GitHub OIDC). No long-lived `CARGO_REGISTRY_TOKEN` is stored in the repository.
+(GitHub OIDC). The first release is also driven by GitHub Actions; no local
+`cargo publish` is required.
 
-Two jobs run on every push to the default branch:
+On every push to the default branch:
 
+- **Release check** runs the test suite and checks whether both crates exist on
+  crates.io.
+- **Release-plz bootstrap** runs only while a crate is missing; it uses a
+  temporary token to create the crates.
+- **Release-plz release** runs once both crates exist; it publishes through OIDC
+  trusted publishing.
 - **Release-plz PR** computes the next versions, updates `Cargo.toml` and
   changelogs, and opens or updates a release PR.
-- **Release-plz release** verifies dependencies, exchanges the job's OIDC token
-  for a short-lived crates.io token, publishes any unpublished version, then
-  creates tags and GitHub releases.
 
-## One-time setup: bootstrap the first release
+## First release (one-time token bootstrap)
 
-crates.io cannot create a **new** crate through trusted publishing. Publish
-`0.1.0` once manually, then let trusted publishing take over.
+crates.io cannot create a **new** crate through OIDC. The workflow handles this
+automatically: while either `koanf-core` or `koanf-rs` is missing from the
+registry, it uses a temporary `CARGO_REGISTRY_TOKEN`; after both crates exist it
+switches to trusted publishing.
 
-1. Create the GitHub repository `hushink/koanf-rs` (an empty repository is
-   enough for this step). If the owner is different, also update the
-   `github.repository_owner` guards in `.github/workflows/release-plz.yml`.
-   The workflow triggers on both `main` and `master`.
-2. Publish the first versions locally with a crates.io token:
+1. Create the GitHub repository `hushink/koanf-rs`. If the owner is different,
+   update the `github.repository_owner` guards in
+   `.github/workflows/release-plz.yml`. The workflow triggers on `main` and
+   `master`.
+2. Add a **temporary** repository secret named `CARGO_REGISTRY_TOKEN` with a
+   crates.io token that can publish new crates. This secret is only needed for
+   the initial crate creation.
+3. Push the repository:
    ```bash
-   cargo login
-   cargo publish -p koanf-core
-   # wait until koanf-core 0.1.0 is visible on crates.io
-   cargo publish -p koanf-rs
+   git remote add origin https://github.com/hushink/koanf-rs.git
+   git push -u origin main   # use master if that is your default branch
    ```
-   The first publish creates the crates; it is the only step that needs a
-   long-lived token. Do not add that token to GitHub.
-3. On crates.io, open the settings of **each** crate and configure trusted
-   publishing:
+   The check job detects that the crates do not exist and the bootstrap job
+   publishes `koanf-core` first, then `koanf-rs`, creating the
+   `koanf-core-v0.1.0` / `koanf-rs-v0.1.0` tags and GitHub releases. No local
+   `cargo publish` is involved.
+4. After `0.1.0` is visible on crates.io, configure trusted publishing for
+   **both** crates:
    - GitHub owner: `hushink`
    - Repository: `koanf-rs`
    - Workflow filename: `release-plz.yml`
      (the file is `.github/workflows/release-plz.yml`)
    - Environment: leave empty; the workflow does not use a GitHub environment.
-4. Create the initial tags and push the repository:
-   ```bash
-   git tag koanf-core-v0.1.0
-   git tag koanf-rs-v0.1.0
-   git remote add origin https://github.com/hushink/koanf-rs.git
-   git push -u origin main   # use master if that is your default branch
-   git push origin --tags
-   ```
-   Optionally create the GitHub releases from the per-package changelogs:
-   ```bash
-   gh release create koanf-core-v0.1.0 --notes-file crates/koanf-core/CHANGELOG.md
-   gh release create koanf-rs-v0.1.0 --notes-file crates/koanf-rs/CHANGELOG.md
-   ```
-5. The first workflow run sees `0.1.0` already published. The release job does
-   not need to publish it; subsequent versions use OIDC trusted publishing.
+5. Delete the `CARGO_REGISTRY_TOKEN` secret. From now on the existence check
+   finds both crates and the release job uses OIDC only.
 
-If the repository is pushed before steps 2–3, the first release job can fail
-with a trusted-publishing/new-crate error. Finish the bootstrap and re-run the
-workflow with **Actions → Release-plz → Run workflow** (`workflow_dispatch`).
+If the first run fails (for example, the secret was not added yet), add it and
+re-run **Actions → Release-plz → Run workflow** (`workflow_dispatch`). If a
+future release adds a new publishable crate, extend the crates.io existence
+check in the workflow or temporarily re-add the token for that crate's first
+publish.
 
 ## Release flow
 
@@ -63,8 +61,9 @@ workflow with **Actions → Release-plz → Run workflow** (`workflow_dispatch`)
 2. The PR job opens/updates `release-plz-*` with the next versions and
    per-package changelogs.
 3. Merge the release PR.
-4. The release job tests, publishes `koanf-core` first, then `koanf-rs`, creates
-   tags (`koanf-core-vX.Y.Z`, `koanf-rs-vX.Y.Z`), and creates GitHub releases.
+4. The check job tests and finds both crates on crates.io; the release job
+   publishes through OIDC, creates tags (`koanf-core-vX.Y.Z`,
+   `koanf-rs-vX.Y.Z`), and creates GitHub releases.
 
 `version_group = "koanf"` keeps both crates on the same version. The facade's
 dependency on `koanf-core` is updated by release-plz.
@@ -88,8 +87,11 @@ release-plz release --dry-run       # verify publishing, without uploading
   is published on a default-branch push. Merging the release PR is what moves a
   new version into `Cargo.toml`.
 - Trusted publishing requires `id-token: write` on the release job and no
-  `CARGO_REGISTRY_TOKEN`. The release-plz action performs the OIDC exchange.
-- The PR job has no registry token; only the release job needs OIDC.
+  `CARGO_REGISTRY_TOKEN` on the normal path. The release-plz action performs the
+  OIDC exchange.
+- The temporary `CARGO_REGISTRY_TOKEN` is used only while a crate is missing
+  from crates.io. Delete it after the first release.
+- The PR job has no registry token.
 - Release PRs can be squashed; `release_always = false` would require a merge
   commit associated with the release PR.
 - The default `GITHUB_TOKEN` cannot trigger other workflows. Add a PAT or

@@ -4,24 +4,22 @@ on:
   push:
     # Keep this in sync with the repository's default branch.
     branches: [master, main]
-  # Useful for retrying the initial 0.1.0 release after the trusted-publishing
-  # bootstrap, or for re-running a failed release.
+  # Useful for retrying the initial 0.1.0 release (for example after adding the
+  # temporary token) or for re-running a failed release.
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release-plz-release:
-    name: Release-plz release
+  release-check:
+    name: Release check
     runs-on: ubuntu-latest
-    # Trusted publishing requires crates.io configuration for both crates and a
-    # manual first publish, because crates.io cannot create new crates via OIDC.
     if: github.repository_owner == 'hushink'
     permissions:
-      contents: write
-      pull-requests: read
-      id-token: write
+      contents: read
+    outputs:
+      bootstrap: ${{ steps.crates.outputs.bootstrap }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -33,14 +31,67 @@ jobs:
         # here because its expected stderr is compiler/platform-sensitive and
         # is already exercised by the CI workflow.
         run: cargo test --workspace --all-features --locked -- --skip watched_requires_watchable
-      - name: Run release-plz
+      - name: Check whether the crates exist on crates.io
+        id: crates
+        run: |
+          core_status=$(curl -sL -o /dev/null -w '%{http_code}' \
+            -H 'User-Agent: koanf-rs-release-check' \
+            https://crates.io/api/v1/crates/koanf-core)
+          facade_status=$(curl -sL -o /dev/null -w '%{http_code}' \
+            -H 'User-Agent: koanf-rs-release-check' \
+            https://crates.io/api/v1/crates/koanf-rs)
+          if [ "$core_status" = "200" ] && [ "$facade_status" = "200" ]; then
+            echo "bootstrap=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "bootstrap=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release-plz-bootstrap:
+    name: Release-plz bootstrap (temporary token)
+    needs: release-check
+    runs-on: ubuntu-latest
+    if: needs.release-check.outputs.bootstrap == 'true' && github.repository_owner == 'hushink'
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Bootstrap initial release
         uses: release-plz/action@1fb72a9583c3601c197b3bd6fc6ce50d58e28ef3 # v0.5.148
         with:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Trusted publishing: no CARGO_REGISTRY_TOKEN. The action exchanges
-          # the job's OIDC token for a short-lived crates.io token.
+          # Temporary token: crates.io cannot create new crates via OIDC.
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  release-plz-release:
+    name: Release-plz release (trusted publishing)
+    needs: release-check
+    runs-on: ubuntu-latest
+    if: needs.release-check.outputs.bootstrap == 'false' && github.repository_owner == 'hushink'
+    permissions:
+      contents: write
+      pull-requests: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Release with trusted publishing
+        uses: release-plz/action@1fb72a9583c3601c197b3bd6fc6ce50d58e28ef3 # v0.5.148
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No CARGO_REGISTRY_TOKEN: release-plz exchanges the job's OIDC token
+          # for a short-lived crates.io token.
 
   release-plz-pr:
     name: Release-plz PR
