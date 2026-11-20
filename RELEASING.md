@@ -20,6 +20,7 @@ crates.io cannot create a **new** crate through trusted publishing. Publish
 1. Create the GitHub repository `hushink/koanf-rs` (an empty repository is
    enough for this step). If the owner is different, also update the
    `github.repository_owner` guards in `.github/workflows/release-plz.yml`.
+   The workflow triggers on both `main` and `master`.
 2. Publish the first versions locally with a crates.io token:
    ```bash
    cargo login
@@ -41,7 +42,7 @@ crates.io cannot create a **new** crate through trusted publishing. Publish
    git tag koanf-core-v0.1.0
    git tag koanf-rs-v0.1.0
    git remote add origin https://github.com/hushink/koanf-rs.git
-   git push -u origin master
+   git push -u origin main   # use master if that is your default branch
    git push origin --tags
    ```
    Optionally create the GitHub releases from the per-package changelogs:
