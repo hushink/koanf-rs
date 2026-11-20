@@ -1,0 +1,76 @@
+name: Feature request
+description: Suggest a new capability or improvement
+title: "[Feature]: "
+labels: ["type: feature", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem first, then the behavior or API you would like.
+        Search existing issues and discussions before opening a new request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what makes it difficult today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior, API, or configuration syntax you want.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, other libraries, or designs you considered.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Choose the closest area; maintainers will apply the matching label.
+      options:
+        - Core engine (values, paths, merge, snapshots, serde)
+        - Built-in source
+        - Format or parser
+        - Watch or reload
+        - Schema, derive, or validation
+        - Documentation
+        - CI or release
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-sketch
+    attributes:
+      label: API sketch
+      description: Optional code or configuration showing how you would like to use it.
+      render: rust
+    validations:
+      required: false
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      description: Does this affect no_std, WebAssembly, MSRV, or public API compatibility?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and discussions.
+          required: true

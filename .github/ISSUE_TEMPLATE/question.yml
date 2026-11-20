@@ -1,0 +1,45 @@
+name: Question
+description: Ask about using or configuring koanf-rs
+title: "[Question]: "
+labels: ["type: question", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the README, examples, and docs.rs pages first. Remove secrets from
+        configuration and code before posting.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and where are you stuck?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant configuration or code
+      description: Optional minimal snippet showing what you have tried.
+      render: rust
+    validations:
+      required: false
+
+  - type: input
+    id: koanf-version
+    attributes:
+      label: koanf version or commit
+      placeholder: "0.1.0, or a git commit SHA"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked the README, examples, docs.rs, and existing issues.
+          required: true
+        - label: I removed secrets from the configuration and code above.
+          required: true

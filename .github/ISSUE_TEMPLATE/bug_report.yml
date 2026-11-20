@@ -1,0 +1,128 @@
+name: Bug report
+description: Report a reproducible problem with koanf-rs or koanf-core
+title: "[Bug]: "
+labels: ["type: bug", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        - Search existing issues first.
+        - Remove tokens, passwords, and other secrets from configuration, logs,
+          and reproduction code.
+        - Do not open a public issue for a security vulnerability.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+      placeholder: A clear and concise description of the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The smallest Cargo.toml features and Rust code that reproduces the issue.
+      render: rust
+      placeholder: |
+        // Cargo.toml features and code that reproduce the problem
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include the error message or backtrace if there is one.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Choose the closest area; maintainers will apply the matching label.
+      options:
+        - Core engine (values, paths, merge, snapshots, serde)
+        - Built-in source
+        - Format or parser
+        - Watch or reload
+        - Schema, derive, or validation
+        - Documentation
+        - CI or release
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform or target
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - WebAssembly (wasm32)
+        - no_std / bare-metal
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: koanf-version
+    attributes:
+      label: koanf version or commit
+      placeholder: "0.1.0, or a git commit SHA"
+    validations:
+      required: true
+
+  - type: input
+    id: rust-version
+    attributes:
+      label: Rust version
+      description: The output of `rustc --version`.
+      placeholder: "rustc 1.92.0"
+    validations:
+      required: true
+
+  - type: input
+    id: features
+    attributes:
+      label: Enabled features
+      description: The koanf-rs or koanf-core feature flags in use.
+      placeholder: "default, async, http, watch"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or backtrace
+      description: Remove secrets before pasting.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I am using Rust 1.92 or newer.
+          required: true
+        - label: I removed secrets from all configuration, code, and logs above.
+          required: true

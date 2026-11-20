@@ -1,0 +1,45 @@
+name: Documentation issue
+description: Report unclear, missing, or incorrect documentation
+title: "[Docs]: "
+labels: ["type: docs", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the documentation. Search existing issues first,
+        and link the exact page or file you are referring to.
+
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: A file path, docs.rs page, or URL.
+      placeholder: "README.md, docs.rs/koanf-rs, or https://..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+      description: Quote the unclear text or describe the missing information.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Optional wording, example, or structure you would like to see.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I checked the current README and docs.rs pages.
+          required: true
