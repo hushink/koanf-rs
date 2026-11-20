@@ -195,7 +195,11 @@ let server_yaml = config.section("server")?.render(&Yaml)?;
 ```
 
 无法表示的值会返回错误。例如 TOML 没有 null 类型，包含 `Value::Null` 的快照
-会返回 `Error::Render`。需要持久化时可以用 `std::fs` 写入返回的字节。
+会返回 `Error::Render`。
+
+`Snapshot::save`、`Section::save`、`Config::save` 会一次性完成渲染和写入。
+渲染在触碰文件之前完成，因此格式错误不会改变目标文件；写入本身会创建或截断
+目标文件。
 
 ## Watch
 
@@ -346,8 +350,7 @@ let config = Config::builder().watched(source).build()?;
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
 v1 不包含：HTTP(S) 之外的远程源（S3/etcd/consul/vault）、glob 模式源、
-async 配置源适配、derive schema 宏、写入文件辅助 API、`no_std`/WASM、
-敏感值脱敏。
+async 配置源适配、derive schema 宏、`no_std`/WASM、敏感值脱敏。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

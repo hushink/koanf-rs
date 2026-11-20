@@ -801,6 +801,59 @@ mod render_tests {
         assert_eq!(roundtrip.get::<String>("servers.1.host").unwrap(), "b");
     }
 
+    #[cfg(all(feature = "json", feature = "file"))]
+    #[test]
+    fn saves_snapshots_and_sections() {
+        let directory = tempfile::tempdir().unwrap();
+        let config = sample_config();
+        let format = koanf_rs::format::Json;
+
+        let snapshot_path = directory.path().join("snapshot.json");
+        config.snapshot().save(&snapshot_path, &format).unwrap();
+        let loaded = Config::builder()
+            .source(koanf_rs::file::File::new(&snapshot_path))
+            .build()
+            .unwrap();
+        assert_eq!(loaded.get::<u16>("server.port").unwrap(), 8080);
+
+        let config_path = directory.path().join("config.json");
+        config.save(&config_path, &format).unwrap();
+        let loaded = Config::builder()
+            .source(koanf_rs::file::File::new(&config_path))
+            .build()
+            .unwrap();
+        assert_eq!(loaded.get::<String>("server.host").unwrap(), "localhost");
+
+        let section_path = directory.path().join("section.json");
+        config
+            .section("server")
+            .unwrap()
+            .save(&section_path, &format)
+            .unwrap();
+        let loaded = Config::builder()
+            .source(koanf_rs::file::File::new(&section_path))
+            .build()
+            .unwrap();
+        assert_eq!(loaded.get::<u16>("port").unwrap(), 8080);
+        assert!(!loaded.contains("server"));
+    }
+
+    #[cfg(feature = "toml")]
+    #[test]
+    fn save_failures_leave_the_target_untouched() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.toml");
+        std::fs::write(&path, "sentinel").unwrap();
+
+        let config = sample_config();
+        config.set("server.optional", Value::Null).unwrap();
+        assert!(matches!(
+            config.save(&path, &koanf_rs::format::Toml),
+            Err(Error::Render { .. })
+        ));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "sentinel");
+    }
+
     #[cfg(feature = "json")]
     #[test]
     fn renders_snapshots_and_sections() {

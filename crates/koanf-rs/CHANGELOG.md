@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - deterministic directory layering with optional recursive traversal and watch
 - conditional HTTP(S) requests with compression and polling watch
 - snapshot and section rendering back to JSON, TOML, and YAML
+- rendered file saves through `Config`, `Snapshot`, and `Section`
 - file and directory watching, async watch streams, and compile-time
   `Watchable` enforcement
 - runtime source inspection and removal

@@ -205,7 +205,10 @@ let server_yaml = config.section("server")?.render(&Yaml)?;
 
 Formats reject values they cannot represent. For example, TOML has no null
 type, so rendering a snapshot containing `Value::Null` returns `Error::Render`.
-Use `std::fs` to persist the returned bytes if needed.
+
+`Snapshot::save`, `Section::save`, and `Config::save` render and write in one
+step. Rendering completes before the file is touched, so format errors leave the
+target unchanged; the write itself truncates or creates the target.
 
 ## Watch
 
@@ -363,7 +366,7 @@ v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
 Not in v1: remote sources other than HTTP(S) (S3/etcd/consul/vault),
 glob-pattern sources, async source adapters, a derive schema macro,
-save-to-file helpers, `no_std`/WASM, or secret redaction.
+`no_std`/WASM, or secret redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 

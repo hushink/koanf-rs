@@ -209,7 +209,7 @@ impl fmt::Display for Error {
                 write!(f, ": {source}")
             }
             Self::Io { path, source } => {
-                write!(f, "failed to read `{}`: {source}", path.display())
+                write!(f, "I/O error at `{}`: {source}", path.display())
             }
             Self::InvalidRoot { source, actual } => {
                 write!(

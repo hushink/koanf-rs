@@ -27,7 +27,8 @@ Initial release.
 - Configurable snapshot validation hooks that reject invalid rebuilds.
 - File and directory watching with full rebuilds, change sets, and
   last-known-good snapshots, including a runtime-agnostic async stream.
-- Snapshot and section rendering back to JSON, TOML, and YAML.
+- Snapshot and section rendering back to JSON, TOML, and YAML, plus rendered
+  file saves that leave the target untouched on format errors.
 - `Source`, `Format`, and `Watchable` extension traits.
 - Feature-gated facade with `koanf-core` as the extension-facing engine.
 - Bilingual README, examples, CI, and Apache-2.0 licensing.

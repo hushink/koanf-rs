@@ -1,7 +1,9 @@
 //! Layered configuration, immutable snapshots, sections, and watch dispatch.
 
 use std::fmt;
+use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::Path as StdPath;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak};
 use std::thread;
@@ -212,6 +214,15 @@ impl Snapshot {
         format.render(&self.inner.value)
     }
 
+    /// Renders the root object and writes it to `path`.
+    ///
+    /// Rendering completes before the file is touched, so format errors leave
+    /// the target unchanged. The write itself uses [`std::fs::write`], which
+    /// creates or truncates the target.
+    pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
+        save_value(path.as_ref(), &self.inner.value, format)
+    }
+
     /// Computes the changes between two snapshots.
     pub fn diff(&self, other: &Snapshot) -> ChangeSet {
         ChangeSet::diff(&self.inner.value, &other.inner.value)
@@ -344,6 +355,15 @@ impl Section {
     /// Renders this section's object as the root value with `format`.
     pub fn render(&self, format: &dyn Format) -> Result<Vec<u8>> {
         format.render(self.as_value())
+    }
+
+    /// Renders this section's object and writes it to `path`.
+    ///
+    /// Rendering completes before the file is touched, so format errors leave
+    /// the target unchanged. The write itself uses [`std::fs::write`], which
+    /// creates or truncates the target.
+    pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
+        save_value(path.as_ref(), self.as_value(), format)
     }
 }
 
@@ -573,6 +593,13 @@ impl Config {
     /// Renders the root object from the current snapshot with `format`.
     pub fn render(&self, format: &dyn Format) -> Result<Vec<u8>> {
         self.snapshot().render(format)
+    }
+
+    /// Renders the current snapshot and writes it to `path`.
+    ///
+    /// See [`Snapshot::save`] for the write semantics.
+    pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
+        self.snapshot().save(path, format)
     }
 
     /// Appends a plain source layer and rebuilds.
@@ -1276,6 +1303,14 @@ fn watch_callback(sender: Sender<DispatchCommand>) -> WatchCallback {
             WatchSignal::Error(error) => DispatchCommand::SourceError(error),
         };
         let _ = sender.send(command);
+    })
+}
+
+fn save_value(path: &StdPath, value: &Value, format: &dyn Format) -> Result<()> {
+    let bytes = format.render(value)?;
+    fs::write(path, bytes).map_err(|source| Error::Io {
+        path: path.to_path_buf(),
+        source,
     })
 }
 
