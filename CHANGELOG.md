@@ -19,9 +19,10 @@ Initial release.
 - Numeric array-index reads such as `servers.0.host`.
 - Type-directed scalar coercion with a strict opt-out.
 - Sources: `Memory`/`ConfMap`, `Structs` (typed defaults), `Bytes`, `File`,
-  `dir::Dir`, `Env`, `Args`, and conditional HTTP(S).
+  `dir::Dir`, `glob::Glob`, `Env`, `Args`, and conditional HTTP(S).
 - Directory sources with deterministic filename layering and optional
   recursive traversal.
+- Glob-pattern sources with recursive matching and watching.
 - Runtime overrides via `set`/`delete` that survive `reload`.
 - Runtime source inspection and removal (`source_names` / `remove_source`).
 - Configurable snapshot validation hooks that reject invalid rebuilds.

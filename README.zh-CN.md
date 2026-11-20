@@ -7,8 +7,8 @@
 受 Go 语言 [koanf](https://github.com/knadh/koanf) 启发的 Rust 分层配置库。
 这是**独立的 Rust 实现**，不是官方移植版本。
 
-- 多配置源：内存、类型化默认值、文件与目录、环境变量、命令行参数、内联
-  字节、HTTP(S)。
+- 多配置源：内存、类型化默认值、文件与目录、glob 模式、环境变量、命令行
+  参数、内联字节、HTTP(S)。
 - 多格式：JSON、TOML、YAML，可选 dotenv 与 INI。
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
@@ -125,6 +125,9 @@ fn main() -> Result<()> {
 默认只读取扩展名受支持且对应 feature 已启用的文件；`.format(...)` 会改为对
 所有普通文件应用同一个显式格式。调用 `.recursive()` 会包含子目录；目录符号
 链接不会被跟随。
+
+`glob::Glob` 用相对根目录的 glob 模式选择文件，例如
+`Glob::new("config", "**/*.toml")`。匹配文件按相对路径字典序合并。
 
 ## 读取值
 
@@ -284,6 +287,7 @@ let config = Config::builder().watched(source).build()?;
 | `bytes::Bytes` | 始终可用 | 内联字节 + 显式格式 |
 | `file::File` | `file` | 单文件；默认按扩展名推断格式 |
 | `dir::Dir` | `file` | 目录内多文件按相对路径字典序合并；可选递归 |
+| `glob::Glob` | `glob` | 在根目录下按 glob 模式匹配；递归 watch |
 | `env::Env` | `env` | 带前缀的环境变量，`__` 分隔嵌套路径 |
 | `args::Args` | `args` | `--key=value`、`--key value`、`--flag` |
 | `http::Http` | `http` | HTTP(S)；条件请求、压缩、轮询 watch |
@@ -311,6 +315,7 @@ let config = Config::builder().watched(source).build()?;
 | `dotenv` | 否 | `format::Dotenv`；也会识别 `.env` 文件名 |
 | `ini` | 否 | `format::Ini` 与 `.ini` 识别 |
 | `file` | 是 | `file::File` 与 `dir::Dir` |
+| `glob` | 否 | `glob::Glob`；隐含 `file` |
 | `env` | 是 | `env::Env` |
 | `args` | 是 | `args::Args` |
 | `watch` | 是 | 通过 `notify` 监听文件与目录；隐含 `file` |
@@ -349,8 +354,8 @@ let config = Config::builder().watched(source).build()?;
 
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
-v1 不包含：HTTP(S) 之外的远程源（S3/etcd/consul/vault）、glob 模式源、
-async 配置源适配、derive schema 宏、`no_std`/WASM、敏感值脱敏。
+v1 不包含：HTTP(S) 之外的远程源（S3/etcd/consul/vault）、async 配置源适配、
+derive schema 宏、`no_std`/WASM、敏感值脱敏。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

@@ -122,6 +122,13 @@ pub enum Error {
         /// Extension that was found, possibly empty.
         extension: String,
     },
+    /// A glob pattern could not be compiled.
+    InvalidGlob {
+        /// Pattern as supplied by the caller.
+        pattern: String,
+        /// Parser error message.
+        message: String,
+    },
     /// A source produced conflicting keys while building a nested map.
     SourceConflict {
         /// Source name.
@@ -273,6 +280,9 @@ impl fmt::Display for Error {
                         path.display()
                     )
                 }
+            }
+            Self::InvalidGlob { pattern, message } => {
+                write!(f, "invalid glob pattern `{pattern}`: {message}")
             }
             Self::SourceConflict { source, message } => {
                 write!(f, "source `{source}` has conflicting keys: {message}")

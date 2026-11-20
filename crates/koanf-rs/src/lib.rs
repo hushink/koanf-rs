@@ -42,9 +42,9 @@
 //!
 //! The default features enable `json`, `toml`, `yaml`, `file`, `env`, `args`,
 //! and `watch`. The optional `dotenv` and `ini` features add those parsers,
-//! `async` adds the watch stream, and `http` adds the HTTP(S) source.
-//! `memory`, `structs`, `confmap`, and `bytes` are always available. Use
-//! `default-features = false` for a minimal core.
+//! `glob` adds the glob-pattern source, `async` adds the watch stream, and
+//! `http` adds the HTTP(S) source. `memory`, `structs`, `confmap`, and `bytes`
+//! are always available. Use `default-features = false` for a minimal core.
 //!
 //! The [`prelude`] re-exports the core types; built-in sources and formats
 //! live in their own modules to avoid name collisions with `std`.
@@ -72,6 +72,8 @@ pub mod file;
     feature = "ini"
 ))]
 pub mod format;
+#[cfg(feature = "glob")]
+pub mod glob;
 #[cfg(feature = "http")]
 pub mod http;
 pub mod memory;

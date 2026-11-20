@@ -8,8 +8,8 @@ A layered configuration library for Rust, inspired by Go's
 [koanf](https://github.com/knadh/koanf). This is an **independent Rust
 implementation**, not an official port.
 
-- Multiple sources: memory, typed defaults, files and directories, environment
-  variables, CLI arguments, inline bytes, and HTTP(S).
+- Multiple sources: memory, typed defaults, files and directories, glob
+  patterns, environment variables, CLI arguments, inline bytes, and HTTP(S).
 - Multiple formats: JSON, TOML, and YAML, with optional dotenv and INI.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
@@ -129,6 +129,10 @@ style names provide deterministic layering within the directory. By default
 only files with an enabled built-in extension are read; `.format(...)` applies
 one explicit format to every regular file instead. Call `.recursive()` to
 include subdirectories; directory symlinks are not followed.
+
+`glob::Glob` selects files with a glob pattern relative to a root directory,
+for example `Glob::new("config", "**/*.toml")`. Matches are merged in
+lexicographic relative-path order.
 
 ## Reading values
 
@@ -294,6 +298,7 @@ and emits an event only when the content actually changes.
 | `bytes::Bytes` | always | Inline bytes with an explicit format |
 | `file::File` | `file` | Single file; format inferred from extension or set explicitly |
 | `dir::Dir` | `file` | Directory of files merged in relative-path order; optional recursive |
+| `glob::Glob` | `glob` | Glob-pattern matches under a root directory; recursive watch |
 | `env::Env` | `env` | Prefixed environment variables with `__`-separated paths |
 | `args::Args` | `args` | `--key=value`, `--key value`, and `--flag` forms |
 | `http::Http` | `http` | HTTP(S); conditional GETs, compression, polling watch |
@@ -322,6 +327,7 @@ coercion applies when a numeric or boolean target is requested.
 | `dotenv` | no | `format::Dotenv`; also detects `.env` file names |
 | `ini` | no | `format::Ini` and `.ini` detection |
 | `file` | yes | `file::File` and `dir::Dir` |
+| `glob` | no | `glob::Glob`; implies `file` |
 | `env` | yes | `env::Env` |
 | `args` | yes | `args::Args` |
 | `watch` | yes | File and directory watching via `notify`; implies `file` |
@@ -364,9 +370,8 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
-Not in v1: remote sources other than HTTP(S) (S3/etcd/consul/vault),
-glob-pattern sources, async source adapters, a derive schema macro,
-`no_std`/WASM, or secret redaction.
+Not in v1: remote sources other than HTTP(S) (S3/etcd/consul/vault), async
+source adapters, a derive schema macro, `no_std`/WASM, or secret redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 

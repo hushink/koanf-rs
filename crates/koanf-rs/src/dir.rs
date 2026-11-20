@@ -140,7 +140,7 @@ impl Source for Dir {
     }
 }
 
-fn collect_files(
+pub(crate) fn collect_files(
     directory: &StdPath,
     root: &StdPath,
     recursive: bool,

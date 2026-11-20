@@ -7,7 +7,12 @@ error[E0277]: the trait bound `ConfMap: Watchable` is not satisfied
   |                               required by a bound introduced by this call
   |
 help: the following other types implement trait `Watchable`
- --> src/http.rs
+ --> src/glob.rs
+  |
+  | impl Watchable for Glob {
+  | ^^^^^^^^^^^^^^^^^^^^^^^ `Glob`
+  |
+ ::: src/http.rs
   |
   | impl Watchable for Http {
   | ^^^^^^^^^^^^^^^^^^^^^^^ `Http`

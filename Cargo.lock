@@ -830,6 +830,7 @@ name = "koanf-rs"
 version = "0.1.0"
 dependencies = [
  "dotenvy",
+ "glob",
  "koanf-core",
  "notify",
  "notify-debouncer-full",

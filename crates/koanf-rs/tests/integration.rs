@@ -373,6 +373,138 @@ mod file_tests {
     }
 }
 
+#[cfg(feature = "glob")]
+mod glob_tests {
+    use std::fs;
+
+    use koanf_rs::glob::Glob;
+    use koanf_rs::prelude::*;
+
+    #[cfg(feature = "toml")]
+    #[test]
+    fn reads_matching_files_in_relative_path_order() {
+        let directory = tempfile::tempdir().unwrap();
+        let nested = directory.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(
+            directory.path().join("10-base.toml"),
+            "server.port = 80\nserver.host = \"localhost\"\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.path().join("20-override.toml"),
+            "[server]\nport = 8080\n",
+        )
+        .unwrap();
+        fs::write(directory.path().join("notes.json"), r#"{"ignored":true}"#).unwrap();
+        fs::write(nested.join("30-nested.toml"), "nested = true\n").unwrap();
+
+        let only_override = Config::builder()
+            .source(Glob::new(directory.path(), "20-*.toml").unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(only_override.get::<u16>("server.port").unwrap(), 8080);
+        assert!(!only_override.contains("server.host"));
+        assert!(!only_override.contains("nested"));
+
+        let all = Config::builder()
+            .source(Glob::new(directory.path(), "**/*.toml").unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(all.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(all.get::<u16>("server.port").unwrap(), 8080);
+        assert!(all.get::<bool>("nested").unwrap());
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn explicit_format_reads_nonstandard_extensions() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("a.conf"), r#"{"value":1}"#).unwrap();
+        fs::write(directory.path().join("b.conf"), r#"{"value":2}"#).unwrap();
+
+        let config = Config::builder()
+            .source(
+                Glob::new(directory.path(), "*.conf")
+                    .unwrap()
+                    .format(koanf_rs::format::Json),
+            )
+            .build()
+            .unwrap();
+        assert_eq!(config.get::<u16>("value").unwrap(), 2);
+    }
+
+    #[test]
+    fn missing_root_and_invalid_patterns_are_errors() {
+        let directory = tempfile::tempdir().unwrap();
+        let missing = directory.path().join("missing");
+
+        assert!(
+            Config::builder()
+                .source(Glob::new(missing.clone(), "*.toml").unwrap())
+                .build()
+                .is_err()
+        );
+        let optional = Config::builder()
+            .source(Glob::new(missing, "*.toml").unwrap().optional())
+            .build()
+            .unwrap();
+        assert!(optional.snapshot().as_map().is_empty());
+
+        assert!(matches!(
+            Glob::new(directory.path(), "["),
+            Err(Error::InvalidGlob { .. })
+        ));
+    }
+
+    #[cfg(all(feature = "watch", feature = "toml"))]
+    #[test]
+    fn watches_new_matching_files() {
+        use std::sync::mpsc::Receiver;
+        use std::time::{Duration, Instant};
+
+        fn recv_matching<F>(receiver: &Receiver<WatchEvent>, predicate: F) -> WatchEvent
+        where
+            F: Fn(&WatchEvent) -> bool,
+        {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                assert!(!remaining.is_zero(), "timed out waiting for watch event");
+                match receiver.recv_timeout(remaining) {
+                    Ok(event) if predicate(&event) => return event,
+                    Ok(_) => {}
+                    Err(error) => panic!("failed waiting for watch event: {error}"),
+                }
+            }
+        }
+
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("10-base.toml"), "value = 1\n").unwrap();
+
+        let config = Config::builder()
+            .watched(
+                Glob::new(directory.path(), "*.toml")
+                    .unwrap()
+                    .debounce(Duration::from_millis(50)),
+            )
+            .build()
+            .unwrap();
+        let (guard, receiver) = config.watch_channel().unwrap();
+
+        fs::write(directory.path().join("20-extra.toml"), "value = 2\n").unwrap();
+        recv_matching(&receiver, |event| {
+            matches!(
+                event,
+                WatchEvent::Changed { snapshot, .. }
+                    if snapshot.get::<u16>("value").ok() == Some(2)
+            )
+        });
+
+        drop(guard);
+    }
+}
+
 #[cfg(feature = "file")]
 mod dir_tests {
     use std::fs;
