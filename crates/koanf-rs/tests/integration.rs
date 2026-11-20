@@ -1092,6 +1092,30 @@ mod ini_tests {
 }
 
 #[test]
+fn named_sources_can_be_inspected_and_removed() {
+    use koanf_rs::memory::Memory;
+
+    let config = Config::builder()
+        .source(
+            Memory::from_iter([("value", Value::from(1))])
+                .unwrap()
+                .named("defaults"),
+        )
+        .source(
+            Memory::from_iter([("value", Value::from(2)), ("extra", Value::from(true))])
+                .unwrap()
+                .named("overrides"),
+        )
+        .build()
+        .unwrap();
+
+    assert_eq!(config.source_names(), vec!["defaults", "overrides"]);
+    assert_eq!(config.remove_source("overrides").unwrap(), 1);
+    assert_eq!(config.get::<u16>("value").unwrap(), 1);
+    assert!(!config.contains("extra"));
+}
+
+#[test]
 fn confmap_alias_matches_memory() {
     use koanf_rs::confmap::ConfMap;
 

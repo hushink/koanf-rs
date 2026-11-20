@@ -34,6 +34,7 @@ pub struct Env {
     mapper: Option<KeyMapper>,
     error_on_non_utf8: bool,
     vars: Option<Vec<(OsString, OsString)>>,
+    name: String,
 }
 
 impl Env {
@@ -46,6 +47,7 @@ impl Env {
             mapper: None,
             error_on_non_utf8: false,
             vars: None,
+            name: "env".to_owned(),
         }
     }
 
@@ -59,6 +61,7 @@ impl Env {
             mapper: None,
             error_on_non_utf8: false,
             vars: None,
+            name: "env".to_owned(),
         }
     }
 
@@ -77,7 +80,15 @@ impl Env {
             mapper: None,
             error_on_non_utf8: false,
             vars: Some(vars.into_iter().collect()),
+            name: "env".to_owned(),
         }
+    }
+
+    /// Sets a custom source name used by `Config::source_names` and
+    /// `Config::remove_source`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
     }
 
     /// Sets the prefix to strip.
@@ -121,13 +132,13 @@ impl Env {
 
 impl Source for Env {
     fn name(&self) -> &str {
-        "env"
+        &self.name
     }
 
     fn read(&self) -> Result<Map> {
         if self.separator.is_empty() {
             return Err(Error::source_error(
-                "env",
+                self.name.clone(),
                 io::Error::new(io::ErrorKind::InvalidInput, "separator must not be empty"),
             ));
         }
@@ -179,7 +190,7 @@ impl Source for Env {
                 None => {
                     if self.error_on_non_utf8 {
                         return Err(Error::source_error(
-                            "env",
+                            self.name.clone(),
                             io::Error::new(
                                 io::ErrorKind::InvalidData,
                                 format!("environment variable `{key}` has a non-UTF-8 value"),
@@ -190,7 +201,7 @@ impl Source for Env {
                 }
             };
 
-            insert_path(&mut map, &path, Value::String(value), "env")?;
+            insert_path(&mut map, &path, Value::String(value), &self.name)?;
         }
         Ok(map)
     }

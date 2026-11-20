@@ -163,7 +163,8 @@ let names = config.source_names();
 let removed = config.remove_source("memory")?;
 ```
 
-源名称不保证唯一，因此会删除所有同名层。
+源名称不保证唯一，因此会删除所有同名层。当自动名称不方便时，内置源支持
+`.named("...")` 自定义名称。
 
 ### 验证
 

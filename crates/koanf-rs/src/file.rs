@@ -47,6 +47,13 @@ impl File {
         }
     }
 
+    /// Sets a custom source name used by `Config::source_names` and
+    /// `Config::remove_source`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
     /// Sets an explicit format, overriding extension inference.
     pub fn format<F>(mut self, format: F) -> Self
     where

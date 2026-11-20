@@ -23,6 +23,7 @@ pub struct Args {
     args: Vec<OsString>,
     prefix: String,
     key_separator: String,
+    name: String,
 }
 
 impl Default for Args {
@@ -38,6 +39,7 @@ impl Args {
             args: std::env::args_os().skip(1).collect(),
             prefix: "--".to_owned(),
             key_separator: ".".to_owned(),
+            name: "args".to_owned(),
         }
     }
 
@@ -53,7 +55,15 @@ impl Args {
             args: args.into_iter().map(Into::into).collect(),
             prefix: "--".to_owned(),
             key_separator: ".".to_owned(),
+            name: "args".to_owned(),
         }
+    }
+
+    /// Sets a custom source name used by `Config::source_names` and
+    /// `Config::remove_source`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
     }
 
     /// Sets the flag prefix. The default is `--`.
@@ -85,19 +95,19 @@ impl Args {
 
 impl Source for Args {
     fn name(&self) -> &str {
-        "args"
+        &self.name
     }
 
     fn read(&self) -> Result<Map> {
         if self.prefix.is_empty() {
             return Err(Error::source_error(
-                "args",
+                self.name.clone(),
                 io::Error::new(io::ErrorKind::InvalidInput, "flag prefix must not be empty"),
             ));
         }
         if self.key_separator.is_empty() {
             return Err(Error::source_error(
-                "args",
+                self.name.clone(),
                 io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "key separator must not be empty",
@@ -148,7 +158,7 @@ impl Source for Args {
                 });
             }
             let path = self.parse_key(&key, arg)?;
-            insert_path(&mut map, &path, value, "args")?;
+            insert_path(&mut map, &path, value, &self.name)?;
             index += 1;
         }
         Ok(map)

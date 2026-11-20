@@ -11,24 +11,41 @@ use crate::util::insert_path;
 #[derive(Clone, Debug)]
 pub struct Memory {
     map: Map,
+    name: String,
 }
 
 impl Memory {
     /// Creates a source from an object.
     pub fn new(map: Map) -> Self {
-        Self { map }
+        Self {
+            map,
+            name: "memory".to_owned(),
+        }
     }
 
     /// Creates an empty source.
     pub fn empty() -> Self {
-        Self { map: Map::new() }
+        Self::new(Map::new())
+    }
+
+    /// Sets a custom source name used by [`Config::source_names`] and
+    /// [`Config::remove_source`].
+    ///
+    /// [`Config::source_names`]: koanf_core::Config::source_names
+    /// [`Config::remove_source`]: koanf_core::Config::remove_source
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
     }
 
     /// Creates a source from a [`Value`], which must be an object.
     pub fn from_value(value: Value) -> Result<Self> {
         let actual = value.type_name();
         match value {
-            Value::Map(map) => Ok(Self { map }),
+            Value::Map(map) => Ok(Self {
+                map,
+                name: "memory".to_owned(),
+            }),
             _ => Err(Error::InvalidRoot {
                 source: "memory".to_owned(),
                 actual,
@@ -51,13 +68,16 @@ impl Memory {
         for (path, value) in pairs {
             insert_path(&mut map, &path.into_path(), value.into(), "memory")?;
         }
-        Ok(Self { map })
+        Ok(Self {
+            map,
+            name: "memory".to_owned(),
+        })
     }
 }
 
 impl Source for Memory {
     fn name(&self) -> &str {
-        "memory"
+        &self.name
     }
 
     fn read(&self) -> Result<Map> {

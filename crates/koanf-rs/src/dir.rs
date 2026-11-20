@@ -60,6 +60,13 @@ impl Dir {
         }
     }
 
+    /// Sets a custom source name used by `Config::source_names` and
+    /// `Config::remove_source`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
     /// Sets an explicit format for every regular file in the directory.
     ///
     /// With an explicit format, files without a known extension are read too.

@@ -21,5 +21,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - rendered file saves through `Config`, `Snapshot`, and `Section`
 - file and directory watching, async watch streams, and compile-time
   `Watchable` enforcement
-- runtime source inspection and removal
+- runtime source inspection and removal, with customizable source names
 - snapshot validation hooks

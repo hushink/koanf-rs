@@ -170,7 +170,8 @@ let removed = config.remove_source("memory")?;
 ```
 
 Source names are not guaranteed to be unique, so all matching layers are
-removed.
+removed. Built-in sources accept `.named("...")` when the automatic name is not
+convenient.
 
 ### Validation
 

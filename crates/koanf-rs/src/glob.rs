@@ -67,6 +67,13 @@ impl Glob {
         })
     }
 
+    /// Sets a custom source name used by `Config::source_names` and
+    /// `Config::remove_source`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
     /// Sets an explicit format for every matching regular file.
     ///
     /// With an explicit format, matches without a known extension are read too.
