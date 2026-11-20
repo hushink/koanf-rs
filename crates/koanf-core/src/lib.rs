@@ -36,7 +36,9 @@ pub use diff::{Change, ChangeKind, ChangeSet};
 pub use error::{Error, Result};
 pub use merge::{ArrayMerge, MergeOptions, NullMerge, merge_map};
 pub use path::{IntoPath, Path};
-pub use source::{Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable};
+pub use source::{
+    AsyncSource, Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable,
+};
 pub use value::{Coercion, Map, Value};
 #[cfg(feature = "async")]
 pub use watch::WatchStream;

@@ -19,6 +19,7 @@
 - 可配置的快照验证钩子。
 - 基于路径的 Debug 脱敏，覆盖 watch/变更输出。
 - 可选的 `tracing` 埋点，覆盖 reload、源变更和 watch 错误。
+- 运行时无关的异步源加载：`AsyncSource`、`build_async`。
 - 编译期约束：只有 `Watchable` 源才能注册到 watch 流程。
 - 可扩展的 `Source` / `Format` / `Watchable` trait。
 - 库自身不使用 `unsafe`。
@@ -278,6 +279,22 @@ while let Some(event) = events.recv().await {
 `WatchStream` 实现 `futures_core::Stream`；`recv` 是自带 async 方法，可配合任意
 executor 或 `StreamExt` 使用。
 
+### 异步源加载
+
+实现 `AsyncSource` 的源可以在构建或运行时加载层时 await：
+
+```rust
+let config = Config::builder()
+    .source_async(remote_source)
+    .build_async()
+    .await?;
+
+config.load_async(another_source).await?;
+```
+
+异步层保持原有合并顺序，但读取一次后成为静态层：`reload` 和 watch 重建不会
+重新执行异步读取。需要持续刷新时请使用同步源或 `Watchable` 源。
+
 ### HTTP 源
 
 可选 `http` feature 提供条件请求、gzip / brotli / deflate / zstd 解压，以及
@@ -381,7 +398,7 @@ let config = Config::builder().watched(source).build()?;
 | `env` | 是 | `env::Env` |
 | `args` | 是 | `args::Args` |
 | `watch` | 是 | 通过 `notify` 监听文件与目录；隐含 `file` |
-| `async` | 否 | `Config::watch_stream` / `WatchStream`，运行时无关 |
+| `async` | 否 | `Config::watch_stream` / `WatchStream`；`AsyncSource` 始终可用 |
 | `tracing` | 否 | `koanf-core` 中的 `tracing` debug/warn 埋点 |
 | `http` | 否 | `http::Http`，reqwest + rustls；轮询 watch |
 | `consul` | 否 | `consul::Consul`，reqwest + base64；轮询 watch |
@@ -419,7 +436,7 @@ let config = Config::builder().watched(source).build()?;
 
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
-v1 不包含：其他远程源（S3/etcd）、async 配置源适配、derive schema 宏、
+v1 不包含：其他远程源（S3/etcd）、async 源 watch、derive schema 宏、
 `no_std`/WASM。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。

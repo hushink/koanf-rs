@@ -1,4 +1,6 @@
+use std::future::Future;
 use std::io;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
@@ -6,8 +8,8 @@ use std::thread;
 use std::time::Duration;
 
 use koanf_core::{
-    ArrayMerge, ChangeKind, Config, Error, MergeOptions, NullMerge, Path, Result, Source, Value,
-    WatchCallback, WatchEvent, WatchSignal, WatchSubscription, Watchable,
+    ArrayMerge, AsyncSource, ChangeKind, Config, Error, MergeOptions, NullMerge, Path, Result,
+    Source, Value, WatchCallback, WatchEvent, WatchSignal, WatchSubscription, Watchable,
 };
 use serde::Deserialize;
 
@@ -44,6 +46,31 @@ impl Source for StaticSource {
 
     fn read(&self) -> Result<koanf_core::Map> {
         Ok(self.map.clone())
+    }
+}
+
+struct AsyncStaticSource {
+    name: String,
+    map: koanf_core::Map,
+}
+
+impl AsyncStaticSource {
+    fn new(name: &str, map: koanf_core::Map) -> Self {
+        Self {
+            name: name.to_owned(),
+            map,
+        }
+    }
+}
+
+impl AsyncSource for AsyncStaticSource {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn read<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<koanf_core::Map>> + Send + 'a>> {
+        let map = self.map.clone();
+        Box::pin(async move { Ok(map) })
     }
 }
 
@@ -286,6 +313,54 @@ fn overlay_set_delete_and_reload() {
     config.reload().unwrap();
     assert_eq!(config.get::<u16>("a").unwrap(), 1);
     assert_eq!(config.get::<u16>("nested.value").unwrap(), 5);
+}
+
+#[test]
+fn async_sources_load_in_layer_order() {
+    let builder = Config::builder()
+        .source(StaticSource::named(
+            "base",
+            map([("a", Value::from(1)), ("b", Value::from(1))]),
+        ))
+        .source_async(AsyncStaticSource::new(
+            "remote",
+            map([("a", Value::from(2)), ("c", Value::from(3))]),
+        ))
+        .source(StaticSource::named("top", map([("a", Value::from(4))])));
+
+    let config = futures_executor::block_on(builder.build_async()).unwrap();
+    assert_eq!(config.get::<u16>("a").unwrap(), 4);
+    assert_eq!(config.get::<u16>("b").unwrap(), 1);
+    assert_eq!(config.get::<u16>("c").unwrap(), 3);
+    assert_eq!(config.source_names(), vec!["base", "remote", "top"]);
+}
+
+#[test]
+fn synchronous_build_rejects_async_layers() {
+    let builder = Config::builder().source_async(AsyncStaticSource::new(
+        "remote",
+        map([("value", Value::from(1))]),
+    ));
+    assert!(matches!(builder.build(), Err(Error::AsyncBuildRequired)));
+}
+
+#[test]
+fn async_layers_can_be_loaded_at_runtime() {
+    let config = Config::builder()
+        .source(StaticSource::named(
+            "base",
+            map([("value", Value::from(1))]),
+        ))
+        .build()
+        .unwrap();
+    futures_executor::block_on(config.load_async(AsyncStaticSource::new(
+        "remote",
+        map([("value", Value::from(2))]),
+    )))
+    .unwrap();
+
+    assert_eq!(config.get::<u16>("value").unwrap(), 2);
+    assert_eq!(config.source_names(), vec!["base", "remote"]);
 }
 
 #[test]

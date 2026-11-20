@@ -30,6 +30,7 @@ Initial release.
 - Configurable snapshot validation hooks that reject invalid rebuilds.
 - Path-based debug redaction for snapshots, change sets, and watch events.
 - Optional `tracing` instrumentation for loads, reloads, and watch errors.
+- Async source loading via `AsyncSource`, `build_async`, and `load_async`.
 - File and directory watching with full rebuilds, change sets, and
   last-known-good snapshots, including a runtime-agnostic async stream.
 - Snapshot and section rendering back to JSON, TOML, and YAML, plus rendered

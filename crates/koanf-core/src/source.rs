@@ -1,5 +1,7 @@
 //! Extension traits for configuration sources, formats, and watchers.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
@@ -37,6 +39,22 @@ pub trait Format: Send + Sync {
             operation: "render",
         })
     }
+}
+
+/// A configuration source with an asynchronous read.
+///
+/// Async sources are read once when a [`Config`](crate::Config) is built with
+/// [`ConfigBuilder::build_async`](crate::ConfigBuilder::build_async) or loaded
+/// with [`Config::load_async`](crate::Config::load_async). They become static
+/// layers afterward: `reload` and watch subscriptions do not re-run the async
+/// read. Use a synchronous [`Source`] or [`Watchable`] source when refreshes
+/// are required.
+pub trait AsyncSource: Send + Sync {
+    /// A short name used in error messages, for example `http:app`.
+    fn name(&self) -> &str;
+
+    /// Reads the source into its root object.
+    fn read<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<Map>> + Send + 'a>>;
 }
 
 /// A signal emitted by a watched source.

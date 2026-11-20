@@ -138,6 +138,8 @@ pub enum Error {
     },
     /// `watch` was requested but no watchable sources are registered.
     NoWatchableSources,
+    /// A synchronous build was attempted with asynchronous source layers.
+    AsyncBuildRequired,
     /// A watch backend failed.
     Watch {
         /// Error message.
@@ -291,6 +293,9 @@ impl fmt::Display for Error {
                 "no watchable sources are registered; use `ConfigBuilder::watched(...)` \
                  to add one",
             ),
+            Self::AsyncBuildRequired => {
+                f.write_str("asynchronous source layers require `ConfigBuilder::build_async`")
+            }
             Self::Watch { message, source } => {
                 write!(f, "watch error: {message}")?;
                 if let Some(source) = source {

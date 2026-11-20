@@ -15,7 +15,9 @@ use crate::diff::ChangeSet;
 use crate::error::{Error, Result};
 use crate::merge::{MergeOptions, merge_map};
 use crate::path::{IntoPath, Path};
-use crate::source::{Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable};
+use crate::source::{
+    AsyncSource, Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable,
+};
 use crate::value::{Coercion, Map, Value};
 use crate::watch::{WatchEvent, WatchGuard};
 
@@ -74,6 +76,21 @@ impl Layer {
             source: source_dyn,
             watchable: Some(watchable),
         }
+    }
+}
+
+struct PreloadedSource {
+    name: String,
+    map: Map,
+}
+
+impl Source for PreloadedSource {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn read(&self) -> Result<Map> {
+        Ok(self.map.clone())
     }
 }
 
@@ -421,9 +438,14 @@ impl fmt::Debug for Section {
 
 type Validator = Arc<dyn Fn(&Snapshot) -> Result<()> + Send + Sync>;
 
+enum BuilderLayer {
+    Sync(Layer),
+    Async(Arc<dyn AsyncSource>),
+}
+
 /// Builder for a [`Config`].
 pub struct ConfigBuilder {
-    layers: Vec<Layer>,
+    layers: Vec<BuilderLayer>,
     merge: MergeOptions,
     coercion: Coercion,
     validation: Option<Validator>,
@@ -456,7 +478,23 @@ impl ConfigBuilder {
     where
         S: Source + 'static,
     {
-        self.layers.push(Layer::new(source));
+        self.layers.push(BuilderLayer::Sync(Layer::new(source)));
+        self
+    }
+
+    /// Appends an asynchronous source layer.
+    ///
+    /// Async layers keep their position in the layer order but are read once
+    /// during [`Self::build_async`]. They become static layers and do not
+    /// participate in `reload` or watch rebuilding.
+    ///
+    /// A synchronous [`Self::build`] fails with [`Error::AsyncBuildRequired`]
+    /// when async layers are present.
+    pub fn source_async<S>(mut self, source: S) -> Self
+    where
+        S: AsyncSource + 'static,
+    {
+        self.layers.push(BuilderLayer::Async(Arc::new(source)));
         self
     }
 
@@ -488,7 +526,7 @@ impl ConfigBuilder {
     where
         W: Watchable + 'static,
     {
-        self.layers.push(Layer::watched(source));
+        self.layers.push(BuilderLayer::Sync(Layer::watched(source)));
         self
     }
 
@@ -552,33 +590,85 @@ impl ConfigBuilder {
 
     /// Loads all sources and builds the configuration.
     ///
-    /// This is eager and fails if any source cannot be read or parsed, or if
-    /// the configured validator rejects the result.
+    /// This is eager and fails if any source cannot be read or parsed, if the
+    /// configured validator rejects the result, or if async source layers are
+    /// present. Use [`Self::build_async`] for async layers.
     pub fn build(self) -> Result<Config> {
-        log_debug!(layers = self.layers.len(), "building configuration");
-        let sources_value = load_sources(&self.layers, &self.merge)?;
-        let overlay = Map::new();
-        let merged = apply_overlay(&sources_value, &overlay, &self.merge)?;
-        let snapshot = Snapshot::from_parts(merged, self.coercion, Arc::from(self.redactions));
-        if let Some(validation) = &self.validation
-            && let Err(error) = validation(&snapshot)
-        {
-            log_warn!(error = %error, "configuration validation failed");
-            return Err(error);
+        let ConfigBuilder {
+            layers,
+            merge,
+            coercion,
+            validation,
+            redactions,
+        } = self;
+        let mut sync_layers = Vec::with_capacity(layers.len());
+        for layer in layers {
+            match layer {
+                BuilderLayer::Sync(layer) => sync_layers.push(layer),
+                BuilderLayer::Async(_) => return Err(Error::AsyncBuildRequired),
+            }
         }
-        let inner = ConfigInner::new(
-            self.layers,
-            overlay,
-            sources_value,
-            snapshot,
-            self.merge,
-            self.coercion,
-            self.validation,
-        );
-        Ok(Config {
-            inner: Arc::new(inner),
-        })
+        build_from_layers(sync_layers, merge, coercion, validation, redactions)
     }
+
+    /// Loads all sources, awaiting async layers, and builds the configuration.
+    ///
+    /// Async layers are read in registration order and then become static
+    /// layers. Later `reload` calls and watch rebuilds do not re-run their
+    /// async reads.
+    pub async fn build_async(self) -> Result<Config> {
+        let ConfigBuilder {
+            layers,
+            merge,
+            coercion,
+            validation,
+            redactions,
+        } = self;
+        let mut sync_layers = Vec::with_capacity(layers.len());
+        for layer in layers {
+            match layer {
+                BuilderLayer::Sync(layer) => sync_layers.push(layer),
+                BuilderLayer::Async(source) => {
+                    let name = source.name().to_owned();
+                    let map = source.read().await?;
+                    sync_layers.push(Layer::new(PreloadedSource { name, map }));
+                }
+            }
+        }
+        build_from_layers(sync_layers, merge, coercion, validation, redactions)
+    }
+}
+
+fn build_from_layers(
+    layers: Vec<Layer>,
+    merge: MergeOptions,
+    coercion: Coercion,
+    validation: Option<Validator>,
+    redactions: Vec<Path>,
+) -> Result<Config> {
+    log_debug!(layers = layers.len(), "building configuration");
+    let sources_value = load_sources(&layers, &merge)?;
+    let overlay = Map::new();
+    let merged = apply_overlay(&sources_value, &overlay, &merge)?;
+    let snapshot = Snapshot::from_parts(merged, coercion, Arc::from(redactions));
+    if let Some(validation) = &validation
+        && let Err(error) = validation(&snapshot)
+    {
+        log_warn!(error = %error, "configuration validation failed");
+        return Err(error);
+    }
+    let inner = ConfigInner::new(
+        layers,
+        overlay,
+        sources_value,
+        snapshot,
+        merge,
+        coercion,
+        validation,
+    );
+    Ok(Config {
+        inner: Arc::new(inner),
+    })
 }
 
 /// A layered configuration handle.
@@ -681,6 +771,19 @@ impl Config {
         W: Watchable + 'static,
     {
         self.inner.load_layer(Layer::watched(source))
+    }
+
+    /// Reads an async source and appends it as a static layer.
+    ///
+    /// The source is read before the layer is committed, so a read failure
+    /// leaves the configuration unchanged. The async source is not watched.
+    pub async fn load_async<S>(&self, source: S) -> Result<()>
+    where
+        S: AsyncSource + 'static,
+    {
+        let name = source.name().to_owned();
+        let map = source.read().await?;
+        self.load(PreloadedSource { name, map })
     }
 
     /// Returns the names of the registered source layers, lowest priority

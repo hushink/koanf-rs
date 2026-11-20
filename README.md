@@ -23,6 +23,7 @@ implementation**, not an official port.
 - Configurable snapshot validation hooks.
 - Path-based debug redaction for secrets and watch/change output.
 - Optional `tracing` instrumentation for reloads, source changes, and watch errors.
+- Runtime-agnostic async source loading via `AsyncSource` and `build_async`.
 - Compile-time enforcement that only `Watchable` sources can be watched.
 - Extension traits for custom sources, formats, and watch backends.
 - The library crates forbid `unsafe` code.
@@ -291,6 +292,24 @@ while let Some(event) = events.recv().await {
 `WatchStream` implements `futures_core::Stream`; `recv` is an inherent async
 method, so you can use it with any executor or with `StreamExt`.
 
+### Async source loading
+
+Sources implementing `AsyncSource` can be awaited during build or runtime layer
+loading:
+
+```rust
+let config = Config::builder()
+    .source_async(remote_source)
+    .build_async()
+    .await?;
+
+config.load_async(another_source).await?;
+```
+
+Async layers keep their position in the merge order, but become static once
+read: `reload` and watch rebuilds do not re-run the async read. Use a sync or
+`Watchable` source when ongoing refresh is required.
+
 ### HTTP source
 
 The optional `http` feature adds a source with conditional requests, gzip /
@@ -398,7 +417,7 @@ coercion applies when a numeric or boolean target is requested.
 | `env` | yes | `env::Env` |
 | `args` | yes | `args::Args` |
 | `watch` | yes | File and directory watching via `notify`; implies `file` |
-| `async` | no | `Config::watch_stream` / `WatchStream`, runtime-agnostic |
+| `async` | no | `Config::watch_stream` / `WatchStream`; `AsyncSource` is always available |
 | `tracing` | no | `tracing` debug/warn instrumentation in `koanf-core` |
 | `http` | no | `http::Http`, reqwest + rustls; polling watch |
 | `consul` | no | `consul::Consul`, reqwest + base64; polling watch |
@@ -440,7 +459,7 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
-Not in v1: other remote sources (S3/etcd), async source adapters, a derive
+Not in v1: other remote sources (S3/etcd), async source watching, a derive
 schema macro, or `no_std`/WASM.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
