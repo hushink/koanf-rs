@@ -263,8 +263,8 @@ and emits an event only when the content actually changes.
 | `format::Json` | `json` | Strict JSON; object order preserved |
 | `format::Toml` | `toml` | TOML datetimes become strings |
 | `format::Yaml` | `yaml` | Standard scalars/sequences/mappings; custom tags are not first-class |
-| `format::Dotenv` | `dotenv` | Flat string map; quoting and `${VAR}` substitution |
-| `format::Ini` | `ini` | Global keys at the root; sections nest under their names |
+| `format::Dotenv` | `dotenv` | Flat string map; quoting and `${VAR}` substitution; parse-only |
+| `format::Ini` | `ini` | Global keys at the root; sections nest under their names; parse-only |
 
 All formats parse into the same ordered `Value` tree. The root of every source
 must be an object. Dotenv and INI values are strings; the usual lenient

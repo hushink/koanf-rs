@@ -256,8 +256,8 @@ let config = Config::builder().watched(source).build()?;
 | `format::Json` | `json` | 严格 JSON；保留对象顺序 |
 | `format::Toml` | `toml` | TOML datetime 转为字符串 |
 | `format::Yaml` | `yaml` | 标准标量/序列/映射；自定义 tag 非一等支持 |
-| `format::Dotenv` | `dotenv` | 扁平字符串 map；支持引号与 `${VAR}` 替换 |
-| `format::Ini` | `ini` | 全局键位于根；section 嵌套在名称下 |
+| `format::Dotenv` | `dotenv` | 扁平字符串 map；支持引号与 `${VAR}` 替换；仅解析 |
+| `format::Ini` | `ini` | 全局键位于根；section 嵌套在名称下；仅解析 |
 
 所有格式统一解析为有序 `Value` 树；每个源的根必须是对象。Dotenv 与 INI 的值
 都是字符串；读取数值或布尔目标时仍会应用默认的宽松转换。
