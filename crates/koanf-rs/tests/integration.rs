@@ -620,6 +620,99 @@ mod watch_tests {
     }
 }
 
+#[cfg(any(feature = "json", feature = "toml", feature = "yaml"))]
+mod render_tests {
+    use koanf_rs::bytes::Bytes;
+    use koanf_rs::memory::Memory;
+    use koanf_rs::prelude::*;
+
+    fn sample_config() -> Config {
+        Config::builder()
+            .source(
+                Memory::from_iter([
+                    ("server.host", Value::from("localhost")),
+                    ("server.port", Value::from(8080)),
+                    ("server.tls", Value::from(true)),
+                ])
+                .unwrap(),
+            )
+            .build()
+            .unwrap()
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn renders_json_and_round_trips() {
+        let format = koanf_rs::format::Json;
+        let rendered = sample_config().render(&format).unwrap();
+        let roundtrip = Config::builder()
+            .source(Bytes::new(rendered, format))
+            .build()
+            .unwrap();
+        assert_eq!(roundtrip.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(roundtrip.get::<u16>("server.port").unwrap(), 8080);
+        assert!(roundtrip.get::<bool>("server.tls").unwrap());
+    }
+
+    #[cfg(feature = "toml")]
+    #[test]
+    fn renders_toml_and_round_trips() {
+        let format = koanf_rs::format::Toml;
+        let rendered = sample_config().render(&format).unwrap();
+        let roundtrip = Config::builder()
+            .source(Bytes::new(rendered, format))
+            .build()
+            .unwrap();
+        assert_eq!(roundtrip.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(roundtrip.get::<u16>("server.port").unwrap(), 8080);
+        assert!(roundtrip.get::<bool>("server.tls").unwrap());
+    }
+
+    #[cfg(feature = "yaml")]
+    #[test]
+    fn renders_yaml_and_round_trips() {
+        let format = koanf_rs::format::Yaml;
+        let rendered = sample_config().render(&format).unwrap();
+        let roundtrip = Config::builder()
+            .source(Bytes::new(rendered, format))
+            .build()
+            .unwrap();
+        assert_eq!(roundtrip.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(roundtrip.get::<u16>("server.port").unwrap(), 8080);
+        assert!(roundtrip.get::<bool>("server.tls").unwrap());
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn renders_snapshots_and_sections() {
+        let format = koanf_rs::format::Json;
+        let config = sample_config();
+        let snapshot = config.snapshot();
+        let rendered = snapshot.render(&format).unwrap();
+        let parsed = format.parse(&rendered).unwrap();
+        assert_eq!(snapshot.as_map(), parsed.as_map().unwrap());
+
+        let section = config.section("server").unwrap();
+        let rendered = section.render(&format).unwrap();
+        let parsed = format.parse(&rendered).unwrap();
+        assert_eq!(
+            parsed.as_map().unwrap().get("port"),
+            Some(&Value::from(8080))
+        );
+    }
+
+    #[cfg(feature = "toml")]
+    #[test]
+    fn toml_render_reports_unrepresentable_values() {
+        let config = sample_config();
+        config.set("server.optional", Value::Null).unwrap();
+        assert!(matches!(
+            config.render(&koanf_rs::format::Toml),
+            Err(Error::Render { .. })
+        ));
+    }
+}
+
 #[test]
 fn confmap_alias_matches_memory() {
     use koanf_rs::confmap::ConfMap;

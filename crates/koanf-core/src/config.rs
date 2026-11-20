@@ -13,7 +13,7 @@ use crate::diff::ChangeSet;
 use crate::error::{Error, Result};
 use crate::merge::{MergeOptions, merge_map};
 use crate::path::{IntoPath, Path};
-use crate::source::{Source, WatchCallback, WatchSignal, WatchSubscription, Watchable};
+use crate::source::{Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable};
 use crate::value::{Coercion, Map, Value};
 use crate::watch::{WatchEvent, WatchGuard};
 
@@ -188,6 +188,13 @@ impl Snapshot {
         self.resolve(&path.into_path()).is_ok()
     }
 
+    /// Renders the root object with `format`.
+    ///
+    /// Formats may reject values they cannot represent, such as TOML nulls.
+    pub fn render(&self, format: &dyn Format) -> Result<Vec<u8>> {
+        format.render(&self.inner.value)
+    }
+
     /// Computes the changes between two snapshots.
     pub fn diff(&self, other: &Snapshot) -> ChangeSet {
         ChangeSet::diff(&self.inner.value, &other.inner.value)
@@ -315,6 +322,11 @@ impl Section {
     /// Returns `true` if `path` resolves relative to this section.
     pub fn contains(&self, path: impl IntoPath) -> bool {
         self.resolve(&path.into_path()).is_ok()
+    }
+
+    /// Renders this section's object as the root value with `format`.
+    pub fn render(&self, format: &dyn Format) -> Result<Vec<u8>> {
+        format.render(self.as_value())
     }
 }
 
@@ -490,6 +502,11 @@ impl Config {
     /// Returns `true` if `path` resolves in the current snapshot.
     pub fn contains(&self, path: impl IntoPath) -> bool {
         self.snapshot().contains(path)
+    }
+
+    /// Renders the root object from the current snapshot with `format`.
+    pub fn render(&self, format: &dyn Format) -> Result<Vec<u8>> {
+        self.snapshot().render(format)
     }
 
     /// Appends a plain source layer and rebuilds.

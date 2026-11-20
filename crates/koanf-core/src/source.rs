@@ -28,8 +28,9 @@ pub trait Format: Send + Sync {
 
     /// Renders a value back to bytes.
     ///
-    /// Rendering is not exposed as a high-level API in v1; the default returns
-    /// [`Error::Unsupported`].
+    /// The default returns [`Error::Unsupported`]. Built-in formats implement
+    /// rendering; custom formats may opt in. Use [`crate::Snapshot::render`] to
+    /// render a complete configuration.
     fn render(&self, _value: &Value) -> Result<Vec<u8>> {
         Err(Error::Unsupported {
             format: self.name().to_owned(),

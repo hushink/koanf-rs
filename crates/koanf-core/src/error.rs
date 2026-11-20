@@ -89,6 +89,13 @@ pub enum Error {
         /// Error message.
         message: String,
     },
+    /// A format failed to render a configuration value back to bytes.
+    Render {
+        /// Format name, for example `"json"`.
+        format: String,
+        /// Underlying error.
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     /// A runtime override path was invalid.
     InvalidPath {
         /// Path as supplied by the caller.
@@ -149,6 +156,17 @@ impl Error {
         Self::Format {
             format: format.into(),
             path,
+            source: Box::new(source),
+        }
+    }
+
+    /// Creates an [`Error::Render`] with a boxed underlying error.
+    pub fn render_error(
+        format: impl Into<String>,
+        source: impl std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        Self::Render {
+            format: format.into(),
             source: Box::new(source),
         }
     }
@@ -214,6 +232,9 @@ impl fmt::Display for Error {
             Self::Serialize { message } => {
                 write!(f, "failed to serialize configuration value: {message}")
             }
+            Self::Render { format, source } => {
+                write!(f, "failed to render format `{format}`: {source}")
+            }
             Self::InvalidPath { input, reason } => {
                 write!(f, "invalid path `{input}`: {reason}")
             }
@@ -257,6 +278,7 @@ impl std::error::Error for Error {
         match self {
             Self::Source { source, .. } => Some(source.as_ref()),
             Self::Format { source, .. } => Some(source.as_ref()),
+            Self::Render { source, .. } => Some(source.as_ref()),
             Self::Io { source, .. } => Some(source),
             Self::Watch {
                 source: Some(source),

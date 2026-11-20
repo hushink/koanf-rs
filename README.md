@@ -149,6 +149,21 @@ let database = config.section("database")?;
 let url: String = database.get("url")?;
 ```
 
+### Rendering
+
+Built-in formats render complete configurations and sections back to bytes:
+
+```rust
+use koanf_rs::format::{Json, Yaml};
+
+let json = config.render(&Json)?;
+let server_yaml = config.section("server")?.render(&Yaml)?;
+```
+
+Formats reject values they cannot represent. For example, TOML has no null
+type, so rendering a snapshot containing `Value::Null` returns `Error::Render`.
+Use `std::fs` to persist the returned bytes if needed.
+
 ## Watch
 
 ```rust
@@ -296,8 +311,8 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 v0.1 focuses on local sources, three formats, typed access, and file watching.
 
-Not in v1: remote sources (HTTP/S3/etcd/consul/vault), glob-pattern sources,
-async adapters, a derive schema macro, validation hooks, render/save APIs,
+Not in v1: remote sources (S3/etcd/consul/vault), glob-pattern sources, async
+adapters, a derive schema macro, validation hooks, save-to-file helpers,
 `no_std`/WASM, array-index paths, dynamic layer removal, or secret redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).

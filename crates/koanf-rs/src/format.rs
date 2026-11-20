@@ -20,6 +20,10 @@ impl Format for Json {
     fn parse(&self, bytes: &[u8]) -> Result<Value> {
         serde_json::from_slice(bytes).map_err(|error| Error::format_error("json", None, error))
     }
+
+    fn render(&self, value: &Value) -> Result<Vec<u8>> {
+        serde_json::to_vec_pretty(value).map_err(|error| Error::render_error("json", error))
+    }
 }
 
 /// TOML format.
@@ -39,6 +43,12 @@ impl Format for Toml {
         let table: toml::Table =
             toml::from_str(text).map_err(|error| Error::format_error("toml", None, error))?;
         Ok(toml_table_to_value(table))
+    }
+
+    fn render(&self, value: &Value) -> Result<Vec<u8>> {
+        toml::to_string_pretty(value)
+            .map(String::into_bytes)
+            .map_err(|error| Error::render_error("toml", error))
     }
 }
 
@@ -80,5 +90,11 @@ impl Format for Yaml {
 
     fn parse(&self, bytes: &[u8]) -> Result<Value> {
         serde_yaml_ng::from_slice(bytes).map_err(|error| Error::format_error("yaml", None, error))
+    }
+
+    fn render(&self, value: &Value) -> Result<Vec<u8>> {
+        serde_yaml_ng::to_string(value)
+            .map(String::into_bytes)
+            .map_err(|error| Error::render_error("yaml", error))
     }
 }
