@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   watch stream
 - runtime source inspection and removal, stopping removed layers' watchers
 - snapshot validation hooks with `Error::Validation`
+- path-based debug redaction for config, snapshot, section, change set, and watch output
 - snapshot and section rendering through the `Format` trait, including save
   helpers
 

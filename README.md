@@ -21,6 +21,7 @@ implementation**, not an official port.
   last-known-good snapshots.
 - Snapshot and section rendering back to JSON, TOML, or YAML.
 - Configurable snapshot validation hooks.
+- Path-based debug redaction for secrets and watch/change output.
 - Compile-time enforcement that only `Watchable` sources can be watched.
 - Extension traits for custom sources, formats, and watch backends.
 - The library crates forbid `unsafe` code.
@@ -197,6 +198,25 @@ let config = Config::builder()
 
 Validators receive an immutable `Snapshot` and must not call mutating methods
 on the same `Config`.
+
+### Redacting secrets
+
+Mark sensitive paths with `ConfigBuilder::redact`. Their values—and everything
+below them—become `"***"` in `Debug` output for `Config`, `Snapshot`, `Section`,
+`ChangeSet`, and `WatchEvent`:
+
+```rust
+let config = Config::builder()
+    .source(File::new("config.toml"))
+    .redact("database.password")
+    .build()?;
+
+println!("{config:?}"); // database.password is shown as "***"
+```
+
+Redaction is debug-only: reads, rendering, saving, and direct iteration over
+`Change`/`ChangeKind` values still return the originals. Errors are not
+redacted.
 
 ### Rendering
 
@@ -419,7 +439,7 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
 Not in v1: other remote sources (S3/etcd), async source adapters, a derive
-schema macro, `no_std`/WASM, or secret redaction.
+schema macro, or `no_std`/WASM.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 

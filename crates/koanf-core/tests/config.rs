@@ -6,7 +6,7 @@ use std::thread;
 use std::time::Duration;
 
 use koanf_core::{
-    ArrayMerge, ChangeKind, Config, Error, MergeOptions, NullMerge, Result, Source, Value,
+    ArrayMerge, ChangeKind, Config, Error, MergeOptions, NullMerge, Path, Result, Source, Value,
     WatchCallback, WatchEvent, WatchSignal, WatchSubscription, Watchable,
 };
 use serde::Deserialize;
@@ -333,6 +333,78 @@ fn validate_positive_port(snapshot: &koanf_core::Snapshot) -> Result<()> {
         return Err(Error::validation("port must be positive"));
     }
     Ok(())
+}
+
+#[test]
+fn debug_output_redacts_configured_paths() {
+    let source = StaticSource::new(map([
+        ("public", Value::from("visible")),
+        (
+            "database",
+            Value::Map(map([
+                ("host", Value::from("db.example")),
+                ("password", Value::from("super-secret")),
+            ])),
+        ),
+        (
+            "items",
+            Value::Array(vec![Value::from("first"), Value::from("second-secret")]),
+        ),
+    ]));
+    let config = Config::builder()
+        .source(source)
+        .redact("database.password")
+        .redact("items.1")
+        .build()
+        .unwrap();
+
+    let debug = format!("{config:?}");
+    assert!(debug.contains("visible"));
+    assert!(debug.contains("db.example"));
+    assert!(debug.contains("***"));
+    assert!(!debug.contains("super-secret"));
+    assert!(!debug.contains("second-secret"));
+
+    let snapshot = config.snapshot();
+    assert!(!format!("{snapshot:?}").contains("super-secret"));
+
+    config.set("database.password", "new-secret").unwrap();
+    let after = config.snapshot();
+    let changes = snapshot.diff(&after);
+    let changes_debug = format!("{changes:?}");
+    assert!(!changes_debug.contains("new-secret"));
+    assert!(!changes_debug.contains("super-secret"));
+
+    let event = WatchEvent::Changed {
+        snapshot: after,
+        changes,
+    };
+    assert!(!format!("{event:?}").contains("new-secret"));
+
+    let prefix = Config::builder()
+        .source(StaticSource::new(map([(
+            "database",
+            Value::Map(map([
+                ("host", Value::from("db")),
+                ("password", Value::from("s3cr3t")),
+            ])),
+        )])))
+        .redact("database")
+        .build()
+        .unwrap();
+    let debug = format!("{prefix:?}");
+    assert!(!debug.contains("s3cr3t"));
+    assert!(!debug.contains("\"db\""));
+
+    let literal = Config::builder()
+        .source(StaticSource::new(map([(
+            "a.b",
+            Value::from("literal-secret"),
+        )])))
+        .redact(Path::key("a.b"))
+        .build()
+        .unwrap();
+    assert!(!format!("{literal:?}").contains("literal-secret"));
 }
 
 #[test]

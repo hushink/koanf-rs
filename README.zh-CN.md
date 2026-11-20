@@ -17,6 +17,7 @@
 - 文件与目录监听：全量重建、变更集、失败时保留最后一个可用快照。
 - 快照与 `Section` 可渲染回 JSON、TOML、YAML。
 - 可配置的快照验证钩子。
+- 基于路径的 Debug 脱敏，覆盖 watch/变更输出。
 - 编译期约束：只有 `Watchable` 源才能注册到 watch 流程。
 - 可扩展的 `Source` / `Format` / `Watchable` trait。
 - 库自身不使用 `unsafe`。
@@ -187,6 +188,24 @@ let config = Config::builder()
 ```
 
 验证器只能读取传入的不可变 `Snapshot`，不得在同一个 `Config` 上调用变更方法。
+
+### 敏感值脱敏
+
+用 `ConfigBuilder::redact` 标记敏感路径。该路径及其所有子值会在 `Config`、
+`Snapshot`、`Section`、`ChangeSet`、`WatchEvent` 的 `Debug` 输出中显示为
+`"***"`：
+
+```rust
+let config = Config::builder()
+    .source(File::new("config.toml"))
+    .redact("database.password")
+    .build()?;
+
+println!("{config:?}"); // database.password 显示为 "***"
+```
+
+脱敏仅作用于 Debug：读取、渲染、保存，以及直接遍历 `Change`/`ChangeKind`
+仍会得到原值。错误信息不会脱敏。
 
 ### 渲染
 
@@ -399,7 +418,7 @@ let config = Config::builder().watched(source).build()?;
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
 v1 不包含：其他远程源（S3/etcd）、async 配置源适配、derive schema 宏、
-`no_std`/WASM、敏感值脱敏。
+`no_std`/WASM。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

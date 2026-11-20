@@ -1,8 +1,10 @@
 //! Snapshot change sets.
 
+use std::fmt;
 use std::sync::Arc;
 
 use crate::path::Path;
+use crate::redact::redact_at;
 use crate::value::Value;
 
 /// A single change between two configuration snapshots.
@@ -31,9 +33,14 @@ pub enum ChangeKind {
 }
 
 /// An immutable, cheaply cloneable set of changes.
-#[derive(Clone, Debug, Default, PartialEq)]
+///
+/// `Debug` output redacts values at paths configured through
+/// [`ConfigBuilder::redact`](crate::ConfigBuilder::redact). Direct access
+/// through [`Change`] and [`ChangeKind`] returns the original values.
+#[derive(Clone)]
 pub struct ChangeSet {
     changes: Arc<[Change]>,
+    redactions: Arc<[Path]>,
 }
 
 impl ChangeSet {
@@ -41,6 +48,7 @@ impl ChangeSet {
     pub fn new(changes: Vec<Change>) -> Self {
         Self {
             changes: changes.into(),
+            redactions: Arc::from(Vec::new()),
         }
     }
 
@@ -69,10 +77,66 @@ impl ChangeSet {
         &self.changes
     }
 
-    pub(crate) fn diff(old: &Value, new: &Value) -> Self {
+    pub(crate) fn diff_redacted(old: &Value, new: &Value, redactions: &[Path]) -> Self {
         let mut changes = Vec::new();
         diff_value(old, new, &Path::root(), &mut changes);
-        Self::new(changes)
+        Self {
+            changes: changes.into(),
+            redactions: Arc::from(redactions),
+        }
+    }
+}
+
+impl Default for ChangeSet {
+    fn default() -> Self {
+        Self {
+            changes: Arc::from(Vec::new()),
+            redactions: Arc::from(Vec::new()),
+        }
+    }
+}
+
+impl PartialEq for ChangeSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.changes == other.changes
+    }
+}
+
+impl fmt::Debug for ChangeSet {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_list()
+            .entries(self.changes.iter().map(|change| RedactedChange {
+                change,
+                redactions: &self.redactions,
+            }))
+            .finish()
+    }
+}
+
+struct RedactedChange<'a> {
+    change: &'a Change,
+    redactions: &'a [Path],
+}
+
+impl fmt::Debug for RedactedChange<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let path = &self.change.path;
+        let kind = match &self.change.kind {
+            ChangeKind::Added(value) => ChangeKind::Added(redact_at(value, path, self.redactions)),
+            ChangeKind::Removed(value) => {
+                ChangeKind::Removed(redact_at(value, path, self.redactions))
+            }
+            ChangeKind::Modified { old, new } => ChangeKind::Modified {
+                old: redact_at(old, path, self.redactions),
+                new: redact_at(new, path, self.redactions),
+            },
+        };
+        formatter
+            .debug_struct("Change")
+            .field("path", path)
+            .field("kind", &kind)
+            .finish()
     }
 }
 
@@ -148,7 +212,7 @@ mod tests {
             ("added", Value::from(1)),
         ]);
 
-        let changes = ChangeSet::diff(&old, &new);
+        let changes = ChangeSet::diff_redacted(&old, &new, &[]);
         assert_eq!(changes.len(), 3);
 
         let kinds = changes
@@ -170,7 +234,7 @@ mod tests {
     fn arrays_are_reported_as_a_whole() {
         let old = map([("items", Value::Array(vec![Value::from(1)]))]);
         let new = map([("items", Value::Array(vec![Value::from(1), Value::from(2)]))]);
-        let changes = ChangeSet::diff(&old, &new);
+        let changes = ChangeSet::diff_redacted(&old, &new, &[]);
         assert_eq!(changes.len(), 1);
         assert_eq!(changes.as_slice()[0].path.to_string(), "items");
     }
@@ -178,13 +242,13 @@ mod tests {
     #[test]
     fn equal_values_produce_no_changes() {
         let value = map([("a", Value::from(1))]);
-        assert!(ChangeSet::diff(&value, &value).is_empty());
+        assert!(ChangeSet::diff_redacted(&value, &value, &[]).is_empty());
     }
 
     #[test]
     fn numeric_and_nan_equality_is_stable_for_diffs() {
         let old = map([("uint", Value::Uint(1)), ("nan", Value::Float(f64::NAN))]);
         let new = map([("uint", Value::Int(1)), ("nan", Value::Float(f64::NAN))]);
-        assert!(ChangeSet::diff(&old, &new).is_empty());
+        assert!(ChangeSet::diff_redacted(&old, &new, &[]).is_empty());
     }
 }

@@ -28,6 +28,7 @@ Initial release.
 - Runtime source inspection and removal (`source_names` / `remove_source`),
   with custom `.named(...)` source labels.
 - Configurable snapshot validation hooks that reject invalid rebuilds.
+- Path-based debug redaction for snapshots, change sets, and watch events.
 - File and directory watching with full rebuilds, change sets, and
   last-known-good snapshots, including a runtime-agnostic async stream.
 - Snapshot and section rendering back to JSON, TOML, and YAML, plus rendered

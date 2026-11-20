@@ -25,6 +25,7 @@ mod diff;
 mod error;
 mod merge;
 mod path;
+mod redact;
 mod ser;
 mod source;
 mod value;

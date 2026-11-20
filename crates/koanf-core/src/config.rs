@@ -56,22 +56,35 @@ impl Layer {
 pub(crate) struct SnapshotInner {
     value: Value,
     coercion: Coercion,
+    redactions: Arc<[Path]>,
 }
 
 /// An immutable view of a configuration.
 ///
 /// Cloning a snapshot is cheap (an `Arc` clone). Use a snapshot when multiple
 /// values must be read consistently.
+///
+/// `Debug` output redacts paths configured through
+/// [`ConfigBuilder::redact`]. Reads, rendering, and saving still return the
+/// original values.
 #[derive(Clone)]
 pub struct Snapshot {
     inner: Arc<SnapshotInner>,
 }
 
 impl Snapshot {
-    pub(crate) fn from_parts(value: Value, coercion: Coercion) -> Self {
+    pub(crate) fn from_parts(value: Value, coercion: Coercion, redactions: Arc<[Path]>) -> Self {
         Self {
-            inner: Arc::new(SnapshotInner { value, coercion }),
+            inner: Arc::new(SnapshotInner {
+                value,
+                coercion,
+                redactions,
+            }),
         }
+    }
+
+    pub(crate) fn redactions(&self) -> Arc<[Path]> {
+        Arc::clone(&self.inner.redactions)
     }
 
     fn resolve<'a>(&'a self, path: &Path) -> Result<&'a Value> {
@@ -225,15 +238,20 @@ impl Snapshot {
 
     /// Computes the changes between two snapshots.
     pub fn diff(&self, other: &Snapshot) -> ChangeSet {
-        ChangeSet::diff(&self.inner.value, &other.inner.value)
+        ChangeSet::diff_redacted(
+            &self.inner.value,
+            &other.inner.value,
+            &self.inner.redactions,
+        )
     }
 }
 
 impl fmt::Debug for Snapshot {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = crate::redact::redact(&self.inner.value, &self.inner.redactions);
         formatter
             .debug_struct("Snapshot")
-            .field("value", &self.inner.value)
+            .field("value", &value)
             .finish()
     }
 }
@@ -385,6 +403,7 @@ pub struct ConfigBuilder {
     merge: MergeOptions,
     coercion: Coercion,
     validation: Option<Validator>,
+    redactions: Vec<Path>,
 }
 
 impl Default for ConfigBuilder {
@@ -401,6 +420,7 @@ impl ConfigBuilder {
             merge: MergeOptions::default(),
             coercion: Coercion::default(),
             validation: None,
+            redactions: Vec::new(),
         }
     }
 
@@ -460,6 +480,20 @@ impl ConfigBuilder {
         self
     }
 
+    /// Marks `path` as sensitive for debug output.
+    ///
+    /// Values at the path, and values below it, are replaced with `"***"` in
+    /// `Debug` output for [`Config`], [`Snapshot`], [`Section`], and
+    /// [`ChangeSet`]/[`WatchEvent`] values. Reads, rendering, saving, and
+    /// iteration over the original [`Change`](crate::Change) values are
+    /// unaffected.
+    ///
+    /// Errors are not redacted.
+    pub fn redact(mut self, path: impl IntoPath) -> Self {
+        self.redactions.push(path.into_path());
+        self
+    }
+
     /// Installs a validator that runs against every new snapshot.
     ///
     /// Validation runs during construction, `reload`, source loading/removal,
@@ -500,7 +534,7 @@ impl ConfigBuilder {
         let sources_value = load_sources(&self.layers, &self.merge)?;
         let overlay = Map::new();
         let merged = apply_overlay(&sources_value, &overlay, &self.merge)?;
-        let snapshot = Snapshot::from_parts(merged, self.coercion);
+        let snapshot = Snapshot::from_parts(merged, self.coercion, Arc::from(self.redactions));
         if let Some(validation) = &self.validation {
             validation(&snapshot)?;
         }
@@ -801,6 +835,7 @@ pub(crate) struct ConfigInner {
     write_lock: Mutex<()>,
     watch: Mutex<WatchState>,
     validation: Option<Validator>,
+    redactions: Arc<[Path]>,
 }
 
 impl ConfigInner {
@@ -813,6 +848,7 @@ impl ConfigInner {
         coercion: Coercion,
         validation: Option<Validator>,
     ) -> Self {
+        let redactions = snapshot.redactions();
         Self {
             state: RwLock::new(State {
                 layers,
@@ -825,6 +861,7 @@ impl ConfigInner {
             write_lock: Mutex::new(()),
             watch: Mutex::new(WatchState::default()),
             validation,
+            redactions,
         }
     }
 
@@ -878,7 +915,7 @@ impl ConfigInner {
         layers.push(layer);
         let sources_value = load_sources(&layers, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
-        let new_snapshot = Snapshot::from_parts(merged, coercion);
+        let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
 
         let mut watch = self.lock_watch();
@@ -949,7 +986,7 @@ impl ConfigInner {
 
         let sources_value = load_sources(&kept, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
-        let new_snapshot = Snapshot::from_parts(merged, coercion);
+        let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
 
         let mut watch = self.lock_watch();
@@ -987,7 +1024,7 @@ impl ConfigInner {
         };
         let sources_value = load_sources(&layers, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
-        let new_snapshot = Snapshot::from_parts(merged, coercion);
+        let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
@@ -1013,7 +1050,7 @@ impl ConfigInner {
         reject_array_index_path(&sources_value, &path)?;
         insert_overlay(&mut overlay, &path, value)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
-        let new_snapshot = Snapshot::from_parts(merged, coercion);
+        let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
@@ -1039,7 +1076,7 @@ impl ConfigInner {
         reject_array_index_path(&sources_value, &path)?;
         delete_overlay(&mut overlay, path.segments());
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
-        let new_snapshot = Snapshot::from_parts(merged, coercion);
+        let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
@@ -1078,7 +1115,7 @@ impl ConfigInner {
         };
         let sources_value = load_sources(&layers, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
-        let new_snapshot = Snapshot::from_parts(merged, coercion);
+        let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
         {
             let mut state = self.write_state();
