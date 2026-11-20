@@ -27,3 +27,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - runtime source inspection and removal, with customizable source names
 - snapshot validation hooks
 - path-based debug redaction for configuration values
+- optional `tracing` instrumentation

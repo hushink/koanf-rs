@@ -22,6 +22,7 @@ implementation**, not an official port.
 - Snapshot and section rendering back to JSON, TOML, or YAML.
 - Configurable snapshot validation hooks.
 - Path-based debug redaction for secrets and watch/change output.
+- Optional `tracing` instrumentation for reloads, source changes, and watch errors.
 - Compile-time enforcement that only `Watchable` sources can be watched.
 - Extension traits for custom sources, formats, and watch backends.
 - The library crates forbid `unsafe` code.
@@ -398,6 +399,7 @@ coercion applies when a numeric or boolean target is requested.
 | `args` | yes | `args::Args` |
 | `watch` | yes | File and directory watching via `notify`; implies `file` |
 | `async` | no | `Config::watch_stream` / `WatchStream`, runtime-agnostic |
+| `tracing` | no | `tracing` debug/warn instrumentation in `koanf-core` |
 | `http` | no | `http::Http`, reqwest + rustls; polling watch |
 | `consul` | no | `consul::Consul`, reqwest + base64; polling watch |
 | `vault` | no | `vault::Vault`, KV v1/v2; polling watch |

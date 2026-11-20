@@ -44,9 +44,9 @@
 //! and `watch`. The optional `dotenv`, `ini`, and `ron` features add those
 //! parsers, `glob` adds the glob-pattern source, `async` adds the watch stream,
 //! `http` adds the HTTP(S) source, `consul` adds the Consul KV source, and
-//! `vault` adds the Vault KV source. `memory`, `structs`, `confmap`, and
-//! `bytes` are always available. Use `default-features = false` for a minimal
-//! core.
+//! `vault` adds the Vault KV source. `tracing` enables instrumentation.
+//! `memory`, `structs`, `confmap`, and `bytes` are always available. Use
+//! `default-features = false` for a minimal core.
 //!
 //! The [`prelude`] re-exports the core types; built-in sources and formats
 //! live in their own modules to avoid name collisions with `std`.

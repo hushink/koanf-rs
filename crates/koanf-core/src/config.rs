@@ -22,6 +22,30 @@ use crate::watch::{WatchEvent, WatchGuard};
 #[cfg(feature = "async")]
 use crate::watch::WatchStream;
 
+#[cfg(feature = "tracing")]
+macro_rules! log_debug {
+    ($($arg:tt)*) => {
+        tracing::debug!($($arg)*);
+    };
+}
+
+#[cfg(not(feature = "tracing"))]
+macro_rules! log_debug {
+    ($($arg:tt)*) => {};
+}
+
+#[cfg(feature = "tracing")]
+macro_rules! log_warn {
+    ($($arg:tt)*) => {
+        tracing::warn!($($arg)*);
+    };
+}
+
+#[cfg(not(feature = "tracing"))]
+macro_rules! log_warn {
+    ($($arg:tt)*) => {};
+}
+
 #[derive(Clone)]
 struct Layer {
     source: Arc<dyn Source>,
@@ -531,12 +555,16 @@ impl ConfigBuilder {
     /// This is eager and fails if any source cannot be read or parsed, or if
     /// the configured validator rejects the result.
     pub fn build(self) -> Result<Config> {
+        log_debug!(layers = self.layers.len(), "building configuration");
         let sources_value = load_sources(&self.layers, &self.merge)?;
         let overlay = Map::new();
         let merged = apply_overlay(&sources_value, &overlay, &self.merge)?;
         let snapshot = Snapshot::from_parts(merged, self.coercion, Arc::from(self.redactions));
-        if let Some(validation) = &self.validation {
-            validation(&snapshot)?;
+        if let Some(validation) = &self.validation
+            && let Err(error) = validation(&snapshot)
+        {
+            log_warn!(error = %error, "configuration validation failed");
+            return Err(error);
         }
         let inner = ConfigInner::new(
             self.layers,
@@ -866,8 +894,11 @@ impl ConfigInner {
     }
 
     fn validate(&self, snapshot: &Snapshot) -> Result<()> {
-        if let Some(validation) = &self.validation {
-            validation(snapshot)?;
+        if let Some(validation) = &self.validation
+            && let Err(error) = validation(snapshot)
+        {
+            log_warn!(error = %error, "configuration validation failed");
+            return Err(error);
         }
         Ok(())
     }
@@ -912,6 +943,7 @@ impl ConfigInner {
                 state.snapshot.clone(),
             )
         };
+        log_debug!(source = %layer.source.name(), "loading source layer");
         layers.push(layer);
         let sources_value = load_sources(&layers, &merge)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
@@ -930,6 +962,13 @@ impl ConfigInner {
             let subscription = watchable.watch(callback)?;
             new_subscription = Some((watchable, subscription));
         }
+        if let Some(subscription) = new_subscription {
+            watch.subscriptions.push(subscription);
+        }
+        log_debug!(
+            source = %layers.last().map(|layer| layer.source.name()).unwrap_or(""),
+            "loaded source layer"
+        );
 
         {
             let mut state = self.write_state();
@@ -937,9 +976,6 @@ impl ConfigInner {
             state.overlay = overlay;
             state.sources_value = sources_value;
             state.snapshot = new_snapshot.clone();
-        }
-        if let Some(subscription) = new_subscription {
-            watch.subscriptions.push(subscription);
         }
 
         let changes = old.diff(&new_snapshot);
@@ -1007,10 +1043,12 @@ impl ConfigInner {
                 changes,
             }));
         }
+        log_debug!(source = %name, removed, "removed source layers");
         Ok(removed)
     }
 
     fn reload(&self) -> Result<()> {
+        log_debug!("reloading configuration");
         let _write_guard = self.lock_write();
         let (layers, overlay, merge, coercion, old) = {
             let state = self.read_state();
@@ -1048,6 +1086,7 @@ impl ConfigInner {
             )
         };
         reject_array_index_path(&sources_value, &path)?;
+        log_debug!(path = %path, "setting runtime override");
         insert_overlay(&mut overlay, &path, value)?;
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
@@ -1074,6 +1113,7 @@ impl ConfigInner {
             )
         };
         reject_array_index_path(&sources_value, &path)?;
+        log_debug!(path = %path, "deleting runtime override");
         delete_overlay(&mut overlay, path.segments());
         let merged = apply_overlay(&sources_value, &overlay, &merge)?;
         let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
@@ -1092,6 +1132,7 @@ impl ConfigInner {
         if changes.is_empty() {
             return;
         }
+        log_debug!(changes = changes.len(), "emitting change event");
         let watch = self.lock_watch();
         if let Some(sender) = &watch.dispatcher {
             let _ = sender.send(DispatchCommand::Emit(WatchEvent::Changed {
@@ -1126,6 +1167,7 @@ impl ConfigInner {
         if changes.is_empty() {
             Ok(None)
         } else {
+            log_debug!(changes = changes.len(), "watch reload produced changes");
             Ok(Some((new_snapshot, changes)))
         }
     }
@@ -1148,6 +1190,7 @@ impl ConfigInner {
                 .retain(|(callback_id, _)| *callback_id != id);
             return Err(error);
         }
+        log_debug!(subscription = id, "registered watch callback");
         Ok(id)
     }
 
@@ -1161,6 +1204,7 @@ impl ConfigInner {
             watch.channels.retain(|(channel_id, _)| *channel_id != id);
             return Err(error);
         }
+        log_debug!(subscription = id, "registered watch channel");
         Ok(id)
     }
 
@@ -1181,6 +1225,7 @@ impl ConfigInner {
                 .retain(|(channel_id, _)| *channel_id != id);
             return Err(error);
         }
+        log_debug!(subscription = id, "registered async watch channel");
         Ok(id)
     }
 
@@ -1216,6 +1261,10 @@ impl ConfigInner {
 
         watch.dispatcher = Some(sender);
         watch.subscriptions = subscriptions;
+        log_debug!(
+            subscriptions = watch.subscriptions.len(),
+            "started watch subscriptions"
+        );
         Ok(())
     }
 
@@ -1230,6 +1279,7 @@ impl ConfigInner {
             .async_channels
             .retain(|(channel_id, _)| *channel_id != id);
         if watch.is_empty() {
+            log_debug!(subscription = id, "shutting down watch subscriptions");
             if let Some(sender) = watch.dispatcher.take() {
                 let _ = sender.send(DispatchCommand::Shutdown);
             }
@@ -1320,13 +1370,19 @@ fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>
                     inner.broadcast(WatchEvent::Changed { snapshot, changes })
                 }
                 Ok(None) => {}
-                Err(error) => inner.broadcast(WatchEvent::Error {
-                    error: Arc::new(error),
-                }),
+                Err(error) => {
+                    log_warn!(error = %error, "watch reload failed");
+                    inner.broadcast(WatchEvent::Error {
+                        error: Arc::new(error),
+                    });
+                }
             },
-            DispatchCommand::SourceError(error) => inner.broadcast(WatchEvent::Error {
-                error: Arc::new(error),
-            }),
+            DispatchCommand::SourceError(error) => {
+                log_warn!(error = %error, "source watch error");
+                inner.broadcast(WatchEvent::Error {
+                    error: Arc::new(error),
+                });
+            }
             DispatchCommand::Emit(event) => inner.broadcast(event),
             DispatchCommand::Shutdown => break,
         }

@@ -18,6 +18,7 @@
 - 快照与 `Section` 可渲染回 JSON、TOML、YAML。
 - 可配置的快照验证钩子。
 - 基于路径的 Debug 脱敏，覆盖 watch/变更输出。
+- 可选的 `tracing` 埋点，覆盖 reload、源变更和 watch 错误。
 - 编译期约束：只有 `Watchable` 源才能注册到 watch 流程。
 - 可扩展的 `Source` / `Format` / `Watchable` trait。
 - 库自身不使用 `unsafe`。
@@ -381,6 +382,7 @@ let config = Config::builder().watched(source).build()?;
 | `args` | 是 | `args::Args` |
 | `watch` | 是 | 通过 `notify` 监听文件与目录；隐含 `file` |
 | `async` | 否 | `Config::watch_stream` / `WatchStream`，运行时无关 |
+| `tracing` | 否 | `koanf-core` 中的 `tracing` debug/warn 埋点 |
 | `http` | 否 | `http::Http`，reqwest + rustls；轮询 watch |
 | `consul` | 否 | `consul::Consul`，reqwest + base64；轮询 watch |
 | `vault` | 否 | `vault::Vault`，KV v1/v2；轮询 watch |
