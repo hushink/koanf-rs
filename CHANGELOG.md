@@ -13,7 +13,7 @@ Initial release.
 
 - Layered configuration with deterministic precedence and atomic rebuilds.
 - Ordered `Value`/`Map` model with JSON, TOML, and YAML formats, plus optional
-  dotenv and INI parsers.
+  dotenv, INI, and RON parsers.
 - Typed serde access: `deserialize`, `get`, `get_opt`, `get_or`, and
   `Section` views.
 - Numeric array-index reads such as `servers.0.host`.

@@ -9,7 +9,7 @@
 
 - 多配置源：内存、类型化默认值、文件与目录、glob 模式、环境变量、命令行
   参数、内联字节、HTTP(S)。
-- 多格式：JSON、TOML、YAML，可选 dotenv 与 INI。
+- 多格式：JSON、TOML、YAML，可选 dotenv、INI 与 RON。
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
   路径作用域的 `Section` 视图。
@@ -190,7 +190,7 @@ let config = Config::builder()
 
 ### 渲染
 
-JSON、TOML、YAML 格式可以把完整配置或 `Section` 渲染回字节：
+JSON、TOML、YAML、RON 格式可以把完整配置或 `Section` 渲染回字节：
 
 ```rust
 use koanf_rs::format::{Json, Yaml};
@@ -303,6 +303,7 @@ let config = Config::builder().watched(source).build()?;
 | `format::Yaml` | `yaml` | 标准标量/序列/映射；自定义 tag 非一等支持 |
 | `format::Dotenv` | `dotenv` | 扁平字符串 map；支持引号与 `${VAR}` 替换；仅解析 |
 | `format::Ini` | `ini` | 全局键位于根；section 嵌套在名称下；仅解析 |
+| `format::Ron` | `ron` | Rusty Object Notation；可解析和渲染 |
 
 所有格式统一解析为有序 `Value` 树；每个源的根必须是对象。Dotenv 与 INI 的值
 都是字符串；读取数值或布尔目标时仍会应用默认的宽松转换。
@@ -316,6 +317,7 @@ let config = Config::builder().watched(source).build()?;
 | `yaml` | 是 | `format::Yaml` |
 | `dotenv` | 否 | `format::Dotenv`；也会识别 `.env` 文件名 |
 | `ini` | 否 | `format::Ini` 与 `.ini` 识别 |
+| `ron` | 否 | `format::Ron` 与 `.ron` 识别 |
 | `file` | 是 | `file::File` 与 `dir::Dir` |
 | `glob` | 否 | `glob::Glob`；隐含 `file` |
 | `env` | 是 | `env::Env` |

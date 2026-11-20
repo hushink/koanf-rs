@@ -2,7 +2,7 @@
 //!
 //! Each format is gated behind its feature. All formats parse bytes into the
 //! ordered [`Value`] tree; the source is responsible for requiring an object
-//! root. JSON, TOML, and YAML also support rendering.
+//! root. JSON, TOML, YAML, and RON also support rendering.
 
 #[cfg(any(feature = "dotenv", feature = "ini"))]
 use koanf_core::Map;
@@ -76,6 +76,30 @@ fn toml_value_to_value(value: toml::Value) -> Value {
             Value::Array(values.into_iter().map(toml_value_to_value).collect())
         }
         toml::Value::Table(table) => toml_table_to_value(table),
+    }
+}
+
+/// RON (Rusty Object Notation) format.
+#[cfg(feature = "ron")]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Ron;
+
+#[cfg(feature = "ron")]
+impl Format for Ron {
+    fn name(&self) -> &str {
+        "ron"
+    }
+
+    fn parse(&self, bytes: &[u8]) -> Result<Value> {
+        let text =
+            std::str::from_utf8(bytes).map_err(|error| Error::format_error("ron", None, error))?;
+        ron::from_str(text).map_err(|error| Error::format_error("ron", None, error))
+    }
+
+    fn render(&self, value: &Value) -> Result<Vec<u8>> {
+        ron::ser::to_string_pretty(value, ron::ser::PrettyConfig::default())
+            .map(String::into_bytes)
+            .map_err(|error| Error::render_error("ron", error))
     }
 }
 

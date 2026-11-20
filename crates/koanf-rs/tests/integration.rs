@@ -1057,6 +1057,50 @@ mod dotenv_tests {
     }
 }
 
+#[cfg(feature = "ron")]
+mod ron_tests {
+    use koanf_rs::bytes::Bytes;
+    use koanf_rs::prelude::*;
+
+    const CONFIG: &[u8] = br#"
+        {
+            "server": {
+                "host": "localhost",
+                "port": 8080,
+            },
+        }
+    "#;
+
+    #[test]
+    fn parses_and_renders_ron() {
+        let source = Bytes::new(CONFIG, koanf_rs::format::Ron);
+        let config = Config::builder().source(source).build().unwrap();
+        assert_eq!(config.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 8080);
+
+        let rendered = config.render(&koanf_rs::format::Ron).unwrap();
+        let roundtrip = Config::builder()
+            .source(Bytes::new(rendered, koanf_rs::format::Ron))
+            .build()
+            .unwrap();
+        assert_eq!(roundtrip.get::<u16>("server.port").unwrap(), 8080);
+    }
+
+    #[cfg(feature = "file")]
+    #[test]
+    fn detects_ron_by_extension() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.ron");
+        std::fs::write(&path, CONFIG).unwrap();
+
+        let config = Config::builder()
+            .source(koanf_rs::file::File::new(path))
+            .build()
+            .unwrap();
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 8080);
+    }
+}
+
 #[cfg(feature = "ini")]
 mod ini_tests {
     use koanf_rs::bytes::Bytes;

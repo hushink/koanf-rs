@@ -20,8 +20,8 @@ use koanf_core::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
 /// A single-file configuration source.
 ///
 /// The format is inferred from the extension (`.json`, `.toml`, `.yaml`,
-/// `.yml`, or `.ini`) or from a `.env` filename, when the corresponding format
-/// feature is enabled. Use [`File::format`] to override inference. A missing
+/// `.yml`, `.ini`, or `.ron`) or from a `.env` filename, when the corresponding
+/// format feature is enabled. Use [`File::format`] to override inference. A missing
 /// file is an error unless [`File::optional`] is used.
 #[derive(Clone)]
 pub struct File {
@@ -93,6 +93,7 @@ pub(crate) fn known_extension(path: &StdPath) -> bool {
         Some("toml") if cfg!(feature = "toml") => true,
         Some("yaml" | "yml") if cfg!(feature = "yaml") => true,
         Some("ini") if cfg!(feature = "ini") => true,
+        Some("ron") if cfg!(feature = "ron") => true,
         _ => false,
     }
 }
@@ -130,6 +131,7 @@ pub(crate) fn format_for_path(
         "toml" => toml_format(),
         "yaml" | "yml" => yaml_format(),
         "ini" => ini_format(),
+        "ron" => ron_format(),
         _ => Err(Error::UnknownFormat {
             path: path.to_path_buf(),
             extension,
@@ -242,6 +244,19 @@ fn ini_format() -> Result<Arc<dyn Format>> {
 fn ini_format() -> Result<Arc<dyn Format>> {
     Err(Error::Unsupported {
         format: "ini".to_owned(),
+        operation: "format feature not enabled",
+    })
+}
+
+#[cfg(feature = "ron")]
+fn ron_format() -> Result<Arc<dyn Format>> {
+    Ok(Arc::new(crate::format::Ron))
+}
+
+#[cfg(not(feature = "ron"))]
+fn ron_format() -> Result<Arc<dyn Format>> {
+    Err(Error::Unsupported {
+        format: "ron".to_owned(),
         operation: "format feature not enabled",
     })
 }

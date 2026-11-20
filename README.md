@@ -10,7 +10,7 @@ implementation**, not an official port.
 
 - Multiple sources: memory, typed defaults, files and directories, glob
   patterns, environment variables, CLI arguments, inline bytes, and HTTP(S).
-- Multiple formats: JSON, TOML, and YAML, with optional dotenv and INI.
+- Multiple formats: JSON, TOML, and YAML, with optional dotenv, INI, and RON.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
 - Typed access through serde: `deserialize::<T>()`, `get::<T>(path)`, and
@@ -199,8 +199,8 @@ on the same `Config`.
 
 ### Rendering
 
-The JSON, TOML, and YAML formats render complete configurations and sections
-back to bytes:
+The JSON, TOML, YAML, and RON formats render complete configurations and
+sections back to bytes:
 
 ```rust
 use koanf_rs::format::{Json, Yaml};
@@ -314,6 +314,7 @@ and emits an event only when the content actually changes.
 | `format::Yaml` | `yaml` | Standard scalars/sequences/mappings; custom tags are not first-class |
 | `format::Dotenv` | `dotenv` | Flat string map; quoting and `${VAR}` substitution; parse-only |
 | `format::Ini` | `ini` | Global keys at the root; sections nest under their names; parse-only |
+| `format::Ron` | `ron` | Rusty Object Notation; render and parse |
 
 All formats parse into the same ordered `Value` tree. The root of every source
 must be an object. Dotenv and INI values are strings; the usual lenient
@@ -328,6 +329,7 @@ coercion applies when a numeric or boolean target is requested.
 | `yaml` | yes | `format::Yaml` |
 | `dotenv` | no | `format::Dotenv`; also detects `.env` file names |
 | `ini` | no | `format::Ini` and `.ini` detection |
+| `ron` | no | `format::Ron` and `.ron` detection |
 | `file` | yes | `file::File` and `dir::Dir` |
 | `glob` | no | `glob::Glob`; implies `file` |
 | `env` | yes | `env::Env` |

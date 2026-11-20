@@ -20,6 +20,7 @@ toml = { workspace = true, optional = true }
 serde_yaml_ng = { workspace = true, optional = true }
 dotenvy = { workspace = true, optional = true }
 rust-ini = { workspace = true, optional = true }
+ron = { workspace = true, optional = true }
 glob-pattern = { workspace = true, optional = true }
 notify = { workspace = true, optional = true }
 notify-debouncer-full = { workspace = true, optional = true }
@@ -33,6 +34,7 @@ toml = ["dep:toml"]
 yaml = ["dep:serde_yaml_ng"]
 dotenv = ["dep:dotenvy"]
 ini = ["dep:rust-ini"]
+ron = ["dep:ron"]
 glob = ["file", "dep:glob-pattern"]
 file = []
 env = []
