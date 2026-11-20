@@ -121,10 +121,11 @@ fn main() -> Result<()> {
 `confmap::ConfMap` for koanf familiarity.
 
 `dir::Dir` loads one directory as a source. Regular files are merged in
-lexicographic filename order, so `10-base.toml` / `20-overrides.toml` style
-names provide deterministic layering within the directory. By default only
-files with an enabled built-in extension are read; `.format(...)` applies one
-explicit format to every regular file instead.
+lexicographic relative-path order, so `10-base.toml` / `20-overrides.toml`
+style names provide deterministic layering within the directory. By default
+only files with an enabled built-in extension are read; `.format(...)` applies
+one explicit format to every regular file instead. Call `.recursive()` to
+include subdirectories; directory symlinks are not followed.
 
 ## Reading values
 
@@ -248,7 +249,7 @@ and emits an event only when the content actually changes.
 | `structs::Structs` | always | Serializes any `serde::Serialize` value; ideal for typed defaults |
 | `bytes::Bytes` | always | Inline bytes with an explicit format |
 | `file::File` | `file` | Single file; format inferred from extension or set explicitly |
-| `dir::Dir` | `file` | Directory of files merged in filename order; non-recursive |
+| `dir::Dir` | `file` | Directory of files merged in relative-path order; optional recursive |
 | `env::Env` | `env` | Prefixed environment variables with `__`-separated paths |
 | `args::Args` | `args` | `--key=value`, `--key value`, and `--flag` forms |
 | `http::Http` | `http` | HTTP(S); conditional GETs, compression, polling watch |

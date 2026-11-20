@@ -117,10 +117,11 @@ fn main() -> Result<()> {
 `Memory` 是内存 map 源，同时以 `confmap::ConfMap` 名称提供，方便熟悉 koanf
 的用户迁移。
 
-`dir::Dir` 把一个目录作为配置源。目录内的普通文件按文件名字典序合并，因此
+`dir::Dir` 把一个目录作为配置源。目录内的普通文件按相对路径字典序合并，因此
 `10-base.toml` / `20-overrides.toml` 这样的命名可以提供确定的目录内分层。
 默认只读取扩展名受支持且对应 feature 已启用的文件；`.format(...)` 会改为对
-所有普通文件应用同一个显式格式。
+所有普通文件应用同一个显式格式。调用 `.recursive()` 会包含子目录；目录符号
+链接不会被跟随。
 
 ## 读取值
 
@@ -241,7 +242,7 @@ let config = Config::builder().watched(source).build()?;
 | `structs::Structs` | 始终可用 | 序列化任意 `serde::Serialize` 值；适合类型化默认值 |
 | `bytes::Bytes` | 始终可用 | 内联字节 + 显式格式 |
 | `file::File` | `file` | 单文件；默认按扩展名推断格式 |
-| `dir::Dir` | `file` | 目录内多文件按文件名字典序合并；非递归 |
+| `dir::Dir` | `file` | 目录内多文件按相对路径字典序合并；可选递归 |
 | `env::Env` | `env` | 带前缀的环境变量，`__` 分隔嵌套路径 |
 | `args::Args` | `args` | `--key=value`、`--key value`、`--flag` |
 | `http::Http` | `http` | HTTP(S)；条件请求、压缩、轮询 watch |

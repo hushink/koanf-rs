@@ -1,12 +1,12 @@
 //! Directory configuration source.
 //!
-//! [`Dir`] loads every regular file in a single directory (not recursively) and
-//! merges them in lexicographic filename order. Later files override earlier
-//! ones, subject to the configured [`MergeOptions`].
+//! [`Dir`] loads regular files from a directory and merges them in
+//! lexicographic relative-path order. Later files override earlier ones,
+//! subject to the configured [`MergeOptions`].
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
 
 use koanf_core::{Error, Format, Map, MergeOptions, Result, Source, merge_map};
@@ -18,14 +18,17 @@ use std::time::Duration;
 
 #[cfg(feature = "watch")]
 use koanf_core::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
+#[cfg(feature = "watch")]
+use notify::event::{EventKind, ModifyKind};
 
 /// A directory-backed configuration source.
 ///
-/// Files are read in lexicographic filename order, so names like
-/// `10-base.toml` and `20-overrides.toml` provide explicit layering. By
-/// default only files with an enabled built-in extension (`.json`, `.toml`,
-/// `.yaml`, `.yml`, or `.ini`) or a `.env` filename are read; [`Dir::format`]
-/// applies one explicit format to every regular file instead.
+/// Files are read in lexicographic relative-path order, so names like
+/// `10-base.toml` and `20-overrides.toml` provide explicit layering. The source
+/// is non-recursive unless [`Dir::recursive`] is used. By default only files
+/// with an enabled built-in extension (`.json`, `.toml`, `.yaml`, `.yml`, or
+/// `.ini`) or a `.env` filename are read; [`Dir::format`] applies one explicit
+/// format to every regular file instead.
 ///
 /// A missing directory is an error unless [`Dir::optional`] is used. Watching a
 /// directory requires the directory to exist when the watcher starts.
@@ -35,6 +38,7 @@ pub struct Dir {
     name: String,
     format: Option<Arc<dyn Format>>,
     optional: bool,
+    recursive: bool,
     merge: MergeOptions,
     #[cfg(feature = "watch")]
     debounce: Duration,
@@ -49,6 +53,7 @@ impl Dir {
             path,
             format: None,
             optional: false,
+            recursive: false,
             merge: MergeOptions::default(),
             #[cfg(feature = "watch")]
             debounce: Duration::from_millis(100),
@@ -71,6 +76,16 @@ impl Dir {
     /// Other I/O errors still fail.
     pub fn optional(mut self) -> Self {
         self.optional = true;
+        self
+    }
+
+    /// Reads subdirectories recursively.
+    ///
+    /// Files are ordered by their relative path, so `nested/20.toml` sorts
+    /// after `10.toml` and after `nested/10.toml`. Directory symlinks are not
+    /// followed, which avoids cycles.
+    pub fn recursive(mut self) -> Self {
+        self.recursive = true;
         self
     }
 
@@ -99,49 +114,15 @@ impl Source for Dir {
     }
 
     fn read(&self) -> Result<Map> {
-        let entries = match fs::read_dir(&self.path) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == io::ErrorKind::NotFound && self.optional => {
-                return Ok(Map::new());
-            }
-            Err(error) => {
-                return Err(Error::Io {
-                    path: self.path.clone(),
-                    source: error,
-                });
-            }
-        };
-
         let mut files = Vec::new();
-        for entry in entries {
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(error) => {
-                    return Err(Error::Io {
-                        path: self.path.clone(),
-                        source: error,
-                    });
-                }
-            };
-            let path = entry.path();
-            let metadata = match entry.metadata() {
-                Ok(metadata) => metadata,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => {
-                    return Err(Error::Io {
-                        path,
-                        source: error,
-                    });
-                }
-            };
-            if !metadata.is_file() {
-                continue;
-            }
-            if self.format.is_none() && !known_extension(&path) {
-                continue;
-            }
-            files.push((entry.file_name(), path));
-        }
+        collect_files(
+            &self.path,
+            &self.path,
+            self.recursive,
+            self.format.is_some(),
+            self.optional,
+            &mut files,
+        )?;
         files.sort_by(|(left, _), (right, _)| left.cmp(right));
 
         let mut merged = Map::new();
@@ -159,11 +140,87 @@ impl Source for Dir {
     }
 }
 
+fn collect_files(
+    directory: &StdPath,
+    root: &StdPath,
+    recursive: bool,
+    explicit_format: bool,
+    ignore_missing: bool,
+    files: &mut Vec<(PathBuf, PathBuf)>,
+) -> Result<()> {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound && ignore_missing => {
+            return Ok(());
+        }
+        Err(error) => {
+            return Err(Error::Io {
+                path: directory.to_path_buf(),
+                source: error,
+            });
+        }
+    };
+
+    for entry in entries {
+        let entry = entry.map_err(|error| Error::Io {
+            path: directory.to_path_buf(),
+            source: error,
+        })?;
+        let path = entry.path();
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(Error::Io {
+                    path: path.clone(),
+                    source: error,
+                });
+            }
+        };
+
+        if file_type.is_dir() {
+            if recursive {
+                collect_files(&path, root, true, explicit_format, true, files)?;
+            }
+            continue;
+        }
+
+        let is_file = if file_type.is_file() {
+            true
+        } else if file_type.is_symlink() {
+            // Follow file symlinks, but never recurse through directory
+            // symlinks, which can form cycles.
+            match entry.metadata() {
+                Ok(metadata) => metadata.is_file(),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+                Err(error) => {
+                    return Err(Error::Io {
+                        path: path.clone(),
+                        source: error,
+                    });
+                }
+            }
+        } else {
+            false
+        };
+        if !is_file {
+            continue;
+        }
+        if !explicit_format && !known_extension(&path) {
+            continue;
+        }
+        let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
+        files.push((relative, path));
+    }
+    Ok(())
+}
+
 #[cfg(feature = "watch")]
 impl Watchable for Dir {
     fn watch(&self, callback: WatchCallback) -> Result<Box<dyn WatchSubscription>> {
         let directory = self.path.clone();
         let has_explicit_format = self.format.is_some();
+        let recursive = self.recursive;
         let callback_for_events = Arc::clone(&callback);
 
         let mut debouncer = notify_debouncer_full::new_debouncer(
@@ -172,11 +229,19 @@ impl Watchable for Dir {
             move |result: notify_debouncer_full::DebounceEventResult| match result {
                 Ok(events) => {
                     let relevant = events.iter().any(|event| {
-                        event
-                            .event
-                            .paths
-                            .iter()
-                            .any(|path| has_explicit_format || known_extension(path))
+                        // Recursive watchers may only report a directory removal
+                        // or rename on the directory itself, which has no config
+                        // extension. Reload on any tree-shape change.
+                        let tree_change = recursive
+                            && matches!(
+                                event.event.kind,
+                                EventKind::Create(_)
+                                    | EventKind::Remove(_)
+                                    | EventKind::Modify(ModifyKind::Name(_))
+                            );
+                        tree_change
+                            || has_explicit_format
+                            || event.event.paths.iter().any(|path| known_extension(path))
                     });
                     if relevant {
                         callback_for_events(WatchSignal::Changed);
@@ -199,14 +264,14 @@ impl Watchable for Dir {
             )
         })?;
 
-        debouncer
-            .watch(&self.path, notify::RecursiveMode::NonRecursive)
-            .map_err(|error| {
-                crate::file::watch_error(
-                    format!("failed to watch `{}`", self.path.display()),
-                    error,
-                )
-            })?;
+        let mode = if self.recursive {
+            notify::RecursiveMode::Recursive
+        } else {
+            notify::RecursiveMode::NonRecursive
+        };
+        debouncer.watch(&self.path, mode).map_err(|error| {
+            crate::file::watch_error(format!("failed to watch `{}`", self.path.display()), error)
+        })?;
 
         Ok(Box::new(crate::file::NotifyWatchSubscription::new(
             debouncer,

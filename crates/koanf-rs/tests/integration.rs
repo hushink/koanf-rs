@@ -380,6 +380,28 @@ mod dir_tests {
     use koanf_rs::dir::Dir;
     use koanf_rs::prelude::*;
 
+    #[cfg(all(feature = "watch", feature = "toml"))]
+    use std::sync::mpsc::Receiver;
+    #[cfg(all(feature = "watch", feature = "toml"))]
+    use std::time::{Duration, Instant};
+
+    #[cfg(all(feature = "watch", feature = "toml"))]
+    fn recv_matching<F>(receiver: &Receiver<WatchEvent>, predicate: F) -> WatchEvent
+    where
+        F: Fn(&WatchEvent) -> bool,
+    {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(!remaining.is_zero(), "timed out waiting for watch event");
+            match receiver.recv_timeout(remaining) {
+                Ok(event) if predicate(&event) => return event,
+                Ok(_) => {}
+                Err(error) => panic!("failed waiting for watch event: {error}"),
+            }
+        }
+    }
+
     #[cfg(feature = "toml")]
     #[test]
     fn merges_files_in_filename_order() {
@@ -463,28 +485,42 @@ mod dir_tests {
         assert_eq!(config.get::<Vec<u16>>("items").unwrap(), vec![1, 2]);
     }
 
+    #[cfg(feature = "toml")]
+    #[test]
+    fn recursive_reads_nested_files_in_relative_path_order() {
+        let directory = tempfile::tempdir().unwrap();
+        let nested = directory.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(
+            directory.path().join("10-root.toml"),
+            "server.host = \"localhost\"\nserver.port = 80\n",
+        )
+        .unwrap();
+        fs::write(
+            nested.join("20-override.toml"),
+            "[server]\nport = 8080\ntls = true\n",
+        )
+        .unwrap();
+
+        let flat = Config::builder()
+            .source(Dir::new(directory.path()))
+            .build()
+            .unwrap();
+        assert_eq!(flat.get::<u16>("server.port").unwrap(), 80);
+        assert!(!flat.contains("server.tls"));
+
+        let recursive = Config::builder()
+            .source(Dir::new(directory.path()).recursive())
+            .build()
+            .unwrap();
+        assert_eq!(recursive.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(recursive.get::<u16>("server.port").unwrap(), 8080);
+        assert!(recursive.get::<bool>("server.tls").unwrap());
+    }
+
     #[cfg(all(feature = "watch", feature = "toml"))]
     #[test]
     fn watches_files_added_and_removed() {
-        use std::sync::mpsc::Receiver;
-        use std::time::{Duration, Instant};
-
-        fn recv_matching<F>(receiver: &Receiver<WatchEvent>, predicate: F) -> WatchEvent
-        where
-            F: Fn(&WatchEvent) -> bool,
-        {
-            let deadline = Instant::now() + Duration::from_secs(10);
-            loop {
-                let remaining = deadline.saturating_duration_since(Instant::now());
-                assert!(!remaining.is_zero(), "timed out waiting for watch event");
-                match receiver.recv_timeout(remaining) {
-                    Ok(event) if predicate(&event) => return event,
-                    Ok(_) => {}
-                    Err(error) => panic!("failed waiting for watch event: {error}"),
-                }
-            }
-        }
-
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("10-base.toml"), "value = 1\n").unwrap();
 
@@ -505,6 +541,45 @@ mod dir_tests {
         });
 
         fs::remove_file(&extra).unwrap();
+        recv_matching(&receiver, |event| {
+            matches!(
+                event,
+                WatchEvent::Changed { snapshot, .. }
+                    if snapshot.get::<u16>("value").ok() == Some(1)
+            )
+        });
+
+        drop(guard);
+    }
+
+    #[cfg(all(feature = "watch", feature = "toml"))]
+    #[test]
+    fn recursive_watch_sees_nested_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let nested = directory.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(directory.path().join("10-base.toml"), "value = 1\n").unwrap();
+
+        let config = Config::builder()
+            .watched(
+                Dir::new(directory.path())
+                    .recursive()
+                    .debounce(Duration::from_millis(50)),
+            )
+            .build()
+            .unwrap();
+        let (guard, receiver) = config.watch_channel().unwrap();
+
+        fs::write(nested.join("20-extra.toml"), "value = 2\n").unwrap();
+        recv_matching(&receiver, |event| {
+            matches!(
+                event,
+                WatchEvent::Changed { snapshot, .. }
+                    if snapshot.get::<u16>("value").ok() == Some(2)
+            )
+        });
+
+        fs::remove_dir_all(&nested).unwrap();
         recv_matching(&receiver, |event| {
             matches!(
                 event,
