@@ -19,7 +19,7 @@ Initial release.
 - Numeric array-index reads such as `servers.0.host`.
 - Type-directed scalar coercion with a strict opt-out.
 - Sources: `Memory`/`ConfMap`, `Structs` (typed defaults), `Bytes`, `File`,
-  `dir::Dir`, `glob::Glob`, `Env`, `Args`, and conditional HTTP(S).
+  `dir::Dir`, `glob::Glob`, `Env`, `Args`, conditional HTTP(S), and Consul KV.
 - Directory sources with deterministic filename layering and optional
   recursive traversal.
 - Glob-pattern sources with recursive matching and watching.

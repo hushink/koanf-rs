@@ -8,7 +8,7 @@
 这是**独立的 Rust 实现**，不是官方移植版本。
 
 - 多配置源：内存、类型化默认值、文件与目录、glob 模式、环境变量、命令行
-  参数、内联字节、HTTP(S)。
+  参数、内联字节、HTTP(S)、Consul KV。
 - 多格式：JSON、TOML、YAML，可选 dotenv、INI 与 RON。
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
@@ -280,6 +280,24 @@ let config = Config::builder().watched(source).build()?;
 内容哈希作为兜底。watch 按 `poll_interval`（默认 30 秒）轮询，仅在内容确实变化
 时推送事件。
 
+### Consul 源
+
+可选 `consul` feature 读取 Consul KV 前缀，解码 base64 值，并把 `/` 分隔的键
+映射为嵌套对象：
+
+```rust
+use koanf_rs::consul::Consul;
+use koanf_rs::prelude::*;
+
+let source = Consul::new("http://127.0.0.1:8500", "config/app")?
+    .token("secret")
+    .datacenter("dc1");
+
+let config = Config::builder().watched(source).build()?;
+```
+
+watch 按可配置间隔轮询；值均为字符串，数值/布尔读取会应用默认宽松转换。
+
 ## 配置源
 
 | 源 | feature | 说明 |
@@ -293,6 +311,7 @@ let config = Config::builder().watched(source).build()?;
 | `env::Env` | `env` | 带前缀的环境变量，`__` 分隔嵌套路径 |
 | `args::Args` | `args` | `--key=value`、`--key value`、`--flag` |
 | `http::Http` | `http` | HTTP(S)；条件请求、压缩、轮询 watch |
+| `consul::Consul` | `consul` | Consul KV 前缀；嵌套键、token、轮询 watch |
 
 ## 格式
 
@@ -325,6 +344,7 @@ let config = Config::builder().watched(source).build()?;
 | `watch` | 是 | 通过 `notify` 监听文件与目录；隐含 `file` |
 | `async` | 否 | `Config::watch_stream` / `WatchStream`，运行时无关 |
 | `http` | 否 | `http::Http`，reqwest + rustls；轮询 watch |
+| `consul` | 否 | `consul::Consul`，reqwest + base64；轮询 watch |
 
 `memory`、`confmap`、`structs`、`bytes` 始终可用。核心类型与扩展 trait 位于
 `koanf-core`；`koanf-rs` facade 负责 re-export。
@@ -358,8 +378,8 @@ let config = Config::builder().watched(source).build()?;
 
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
-v1 不包含：HTTP(S) 之外的远程源（S3/etcd/consul/vault）、async 配置源适配、
-derive schema 宏、`no_std`/WASM、敏感值脱敏。
+v1 不包含：其他远程源（S3/etcd/vault）、async 配置源适配、derive schema 宏、
+`no_std`/WASM、敏感值脱敏。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

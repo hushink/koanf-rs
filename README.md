@@ -9,7 +9,8 @@ A layered configuration library for Rust, inspired by Go's
 implementation**, not an official port.
 
 - Multiple sources: memory, typed defaults, files and directories, glob
-  patterns, environment variables, CLI arguments, inline bytes, and HTTP(S).
+  patterns, environment variables, CLI arguments, inline bytes, HTTP(S), and
+  Consul KV.
 - Multiple formats: JSON, TOML, and YAML, with optional dotenv, INI, and RON.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
@@ -291,6 +292,25 @@ let config = Config::builder().watched(source).build()?;
 a SHA-256 content hash. The watch loop polls at `poll_interval` (default 30s)
 and emits an event only when the content actually changes.
 
+### Consul source
+
+The optional `consul` feature reads a Consul KV prefix, decodes base64 values,
+and maps slash-separated keys into nested objects:
+
+```rust
+use koanf_rs::consul::Consul;
+use koanf_rs::prelude::*;
+
+let source = Consul::new("http://127.0.0.1:8500", "config/app")?
+    .token("secret")
+    .datacenter("dc1");
+
+let config = Config::builder().watched(source).build()?;
+```
+
+Watching polls the prefix at a configurable interval; values are strings, so
+numeric and boolean reads use the usual coercion.
+
 ## Sources
 
 | Source | Feature | Description |
@@ -304,6 +324,7 @@ and emits an event only when the content actually changes.
 | `env::Env` | `env` | Prefixed environment variables with `__`-separated paths |
 | `args::Args` | `args` | `--key=value`, `--key value`, and `--flag` forms |
 | `http::Http` | `http` | HTTP(S); conditional GETs, compression, polling watch |
+| `consul::Consul` | `consul` | Consul KV prefix; nested keys, token/auth, polling watch |
 
 ## Formats
 
@@ -337,6 +358,7 @@ coercion applies when a numeric or boolean target is requested.
 | `watch` | yes | File and directory watching via `notify`; implies `file` |
 | `async` | no | `Config::watch_stream` / `WatchStream`, runtime-agnostic |
 | `http` | no | `http::Http`, reqwest + rustls; polling watch |
+| `consul` | no | `consul::Consul`, reqwest + base64; polling watch |
 
 `memory`, `confmap`, `structs`, and `bytes` are always available. Core types and
 extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.
@@ -374,8 +396,8 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
-Not in v1: remote sources other than HTTP(S) (S3/etcd/consul/vault), async
-source adapters, a derive schema macro, `no_std`/WASM, or secret redaction.
+Not in v1: other remote sources (S3/etcd/vault), async source adapters, a derive
+schema macro, `no_std`/WASM, or secret redaction.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 
