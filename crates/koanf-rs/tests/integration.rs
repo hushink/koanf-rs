@@ -772,6 +772,35 @@ mod render_tests {
         assert!(roundtrip.get::<bool>("server.tls").unwrap());
     }
 
+    #[cfg(feature = "toml")]
+    #[test]
+    fn renders_toml_arrays_of_tables() {
+        let servers = Value::Array(vec![
+            Value::Map(
+                [("host".to_owned(), Value::from("a"))]
+                    .into_iter()
+                    .collect(),
+            ),
+            Value::Map(
+                [("host".to_owned(), Value::from("b"))]
+                    .into_iter()
+                    .collect(),
+            ),
+        ]);
+        let config = Config::builder()
+            .source(Memory::from_iter([("servers", servers)]).unwrap())
+            .build()
+            .unwrap();
+
+        let format = koanf_rs::format::Toml;
+        let rendered = config.render(&format).unwrap();
+        let roundtrip = Config::builder()
+            .source(Bytes::new(rendered, format))
+            .build()
+            .unwrap();
+        assert_eq!(roundtrip.get::<String>("servers.1.host").unwrap(), "b");
+    }
+
     #[cfg(feature = "json")]
     #[test]
     fn renders_snapshots_and_sections() {
