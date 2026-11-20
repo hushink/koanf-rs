@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/hushink/koanf-rs/compare/koanf-rs-v0.1.0...koanf-rs-v0.1.1) - 2026-11-20
+
+### Fixed
+
+- *(watch)* reload on coalesced directory events
+
 ### Fixed
 
 - directory and glob watchers reload on any change under the watched tree, so

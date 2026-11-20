@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "koanf-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "koanf-derive"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -895,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "koanf-rs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "dotenvy",
