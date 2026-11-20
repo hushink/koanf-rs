@@ -17,6 +17,7 @@ use crate::diff::ChangeSet;
 use crate::error::{Error, Result};
 use crate::merge::{MergeOptions, merge_map};
 use crate::path::{IntoPath, Path};
+use crate::schema::Schema;
 use crate::source::{
     AsyncSource, Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable,
 };
@@ -222,6 +223,14 @@ impl Snapshot {
         T: DeserializeOwned,
     {
         de::deserialize_value(&self.inner.value, self.inner.coercion, Path::root())
+    }
+
+    /// Deserializes the whole configuration into a typed [`Schema`].
+    pub fn schema<S>(&self) -> Result<S>
+    where
+        S: Schema,
+    {
+        self.deserialize()
     }
 
     /// Returns a view of the object at `path`.
@@ -578,6 +587,30 @@ impl ConfigBuilder {
         self
     }
 
+    /// Applies the secret paths declared by a typed [`Schema`].
+    pub fn redact_schema<S>(mut self) -> Self
+    where
+        S: Schema,
+    {
+        for path in S::secret_paths() {
+            self.redactions.push(Path::parse(&path));
+        }
+        self
+    }
+
+    /// Validates every new snapshot by deserializing it into a typed
+    /// [`Schema`].
+    ///
+    /// Missing or mistyped fields are reported as [`Error::Deserialize`] (or a
+    /// more specific deserialization error), and the invalid snapshot is not
+    /// committed.
+    pub fn validate_schema<S>(self) -> Self
+    where
+        S: Schema + 'static,
+    {
+        self.validate(|snapshot| snapshot.deserialize::<S>().map(|_| ()))
+    }
+
     /// Installs a validator that runs against every new snapshot.
     ///
     /// Validation runs during construction, `reload`, source loading/removal,
@@ -744,6 +777,14 @@ impl Config {
         T: DeserializeOwned,
     {
         self.snapshot().deserialize()
+    }
+
+    /// Deserializes the current snapshot into a typed [`Schema`].
+    pub fn schema<S>(&self) -> Result<S>
+    where
+        S: Schema,
+    {
+        self.snapshot().schema()
     }
 
     /// Returns a view of the object at `path` from the current snapshot.

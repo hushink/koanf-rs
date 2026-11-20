@@ -16,6 +16,8 @@ Initial release.
   dotenv, INI, and RON parsers.
 - Typed serde access: `deserialize`, `get`, `get_opt`, `get_or`, and
   `Section` views.
+- `KoanfSchema` derives for typed schemas, secret-path discovery, and schema
+  validation.
 - Numeric array-index reads such as `servers.0.host`.
 - Type-directed scalar coercion with a strict opt-out.
 - Sources: `Memory`/`ConfMap`, `Structs` (typed defaults), `Bytes`, `File`,

@@ -5,7 +5,7 @@
 
 pub use koanf_core::{
     ArrayMerge, Change, ChangeKind, ChangeSet, Coercion, Config, ConfigBuilder, Error, Format,
-    IntoPath, Map, MergeOptions, NullMerge, Path, Result, Section, Snapshot, Source, Value,
+    IntoPath, Map, MergeOptions, NullMerge, Path, Result, Schema, Section, Snapshot, Source, Value,
     WatchEvent, WatchGuard, WatchSignal, Watchable,
 };
 

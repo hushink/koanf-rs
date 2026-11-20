@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   watch stream
 - runtime source inspection and removal, stopping removed layers' watchers
 - snapshot validation hooks with `Error::Validation`
+- the `Schema` trait with `redact_schema`, `validate_schema`, and typed schema access
 - path-based debug redaction for config, snapshot, section, change set, and watch output
 - optional `tracing` instrumentation
 - async source loading with `AsyncSource`, `build_async`, and `load_async`

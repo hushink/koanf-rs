@@ -34,13 +34,17 @@ jobs:
       - name: Check whether the crates exist on crates.io
         id: crates
         run: |
-          core_status=$(curl -sL -o /dev/null -w '%{http_code}' \
-            -H 'User-Agent: koanf-rs-release-check' \
-            https://crates.io/api/v1/crates/koanf-core)
-          facade_status=$(curl -sL -o /dev/null -w '%{http_code}' \
-            -H 'User-Agent: koanf-rs-release-check' \
-            https://crates.io/api/v1/crates/koanf-rs)
-          if [ "$core_status" = "200" ] && [ "$facade_status" = "200" ]; then
+          missing=0
+          for crate in koanf-core koanf-derive koanf-rs; do
+            status=$(curl -sL -o /dev/null -w '%{http_code}' \
+              -H 'User-Agent: koanf-rs-release-check' \
+              "https://crates.io/api/v1/crates/$crate")
+            if [ "$status" != "200" ]; then
+              echo "::notice::$crate is not published yet (HTTP $status)"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 0 ]; then
             echo "bootstrap=false" >> "$GITHUB_OUTPUT"
           else
             echo "bootstrap=true" >> "$GITHUB_OUTPUT"

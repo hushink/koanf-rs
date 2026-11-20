@@ -12,10 +12,14 @@ release_always = true
 repo_url = "https://github.com/hushink/koanf-rs"
 semver_check = true
 
-# Keep the facade and the core crate on the same version. release-plz also
-# updates the facade's path/version dependency on koanf-core.
+# Keep the facade, core, and derive crates on the same version. release-plz also
+# updates the facade's path/version dependencies.
 [[package]]
 name = "koanf-core"
+version_group = "koanf"
+
+[[package]]
+name = "koanf-derive"
 version_group = "koanf"
 
 [[package]]

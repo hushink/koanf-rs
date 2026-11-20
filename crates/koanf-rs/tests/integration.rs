@@ -1158,6 +1158,76 @@ mod ini_tests {
     }
 }
 
+#[cfg(feature = "derive")]
+mod schema_tests {
+    use koanf_rs::memory::Memory;
+    use koanf_rs::prelude::*;
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize, koanf_rs::KoanfSchema)]
+    struct Database {
+        host: String,
+        #[koanf(secret)]
+        password: String,
+    }
+
+    #[derive(Debug, Deserialize, koanf_rs::KoanfSchema)]
+    struct App {
+        port: u16,
+        #[koanf(secret)]
+        token: String,
+        #[serde(rename = "db")]
+        #[koanf(nested, rename = "db")]
+        database: Database,
+    }
+
+    #[test]
+    fn derives_secret_paths_and_typed_access() {
+        assert_eq!(
+            App::secret_paths(),
+            vec!["token".to_owned(), "db.password".to_owned()]
+        );
+        assert_eq!(App::NAME, "App");
+
+        let config = Config::builder()
+            .source(
+                Memory::from_iter([
+                    ("port", Value::from(8080)),
+                    ("token", Value::from("token-secret")),
+                    ("db.host", Value::from("localhost")),
+                    ("db.password", Value::from("db-secret")),
+                ])
+                .unwrap(),
+            )
+            .redact_schema::<App>()
+            .validate_schema::<App>()
+            .build()
+            .unwrap();
+
+        let app = config.schema::<App>().unwrap();
+        assert_eq!(app.port, 8080);
+        assert_eq!(app.token, "token-secret");
+        assert_eq!(app.database.host, "localhost");
+        assert_eq!(app.database.password, "db-secret");
+
+        let debug = format!("{config:?}");
+        assert!(!debug.contains("token-secret"));
+        assert!(!debug.contains("db-secret"));
+        assert!(debug.contains("***"));
+    }
+
+    #[test]
+    fn schema_validation_rejects_incomplete_configs() {
+        assert!(matches!(
+            Config::builder()
+                .source(Memory::from_iter([("port", Value::from(8080))]).unwrap())
+                .validate_schema::<App>()
+                .build(),
+            Err(Error::Deserialize { .. })
+        ));
+    }
+}
+
 #[test]
 fn named_sources_can_be_inspected_and_removed() {
     use koanf_rs::memory::Memory;

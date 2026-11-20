@@ -41,7 +41,7 @@
 //! # Features
 //!
 //! The default features enable `json`, `toml`, `yaml`, `file`, `env`, `args`,
-//! and `watch`. The optional `dotenv`, `ini`, and `ron` features add those
+//! `watch`, and `derive`. The optional `dotenv`, `ini`, and `ron` features add those
 //! parsers, `glob` adds the glob-pattern source, `async` adds the watch stream,
 //! `http` adds the HTTP(S) source, `consul` adds the Consul KV source, and
 //! `vault` adds the Vault KV source. `tracing` enables instrumentation, and
@@ -56,6 +56,9 @@
 #![deny(missing_docs)]
 
 pub use koanf_core::*;
+
+#[cfg(feature = "derive")]
+pub use koanf_derive::KoanfSchema;
 
 #[cfg(feature = "args")]
 pub mod args;

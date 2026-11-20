@@ -13,6 +13,7 @@
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
   路径作用域的 `Section` 视图。
+- 类型化 schema：敏感路径与验证可通过 derive 生成。
 - 不可变、`Arc` 支撑的快照，保证多键读取的一致性。
 - 文件与目录监听：全量重建、变更集、失败时保留最后一个可用快照。
 - 快照与 `Section` 可渲染回 JSON、TOML、YAML。
@@ -191,6 +192,44 @@ let config = Config::builder()
 ```
 
 验证器只能读取传入的不可变 `Snapshot`，不得在同一个 `Config` 上调用变更方法。
+
+### 类型化 Schema
+
+默认 `derive` feature 重新导出 `KoanfSchema`。它会生成类型化 `Schema` 实现，
+并收集字段上声明的敏感路径：
+
+```rust
+use serde::Deserialize;
+
+#[derive(Deserialize, koanf_rs::KoanfSchema)]
+struct App {
+    port: u16,
+    #[koanf(secret)]
+    token: String,
+    #[koanf(nested)]
+    database: Database,
+}
+
+#[derive(Deserialize, koanf_rs::KoanfSchema)]
+struct Database {
+    host: String,
+    #[koanf(secret)]
+    password: String,
+}
+
+let config = Config::builder()
+    .source(File::new("config.toml"))
+    .redact_schema::<App>()
+    .validate_schema::<App>()
+    .build()?;
+
+let app: App = config.schema()?;
+```
+
+- `#[koanf(secret)]`：在 Debug 输出中隐藏该字段
+- `#[koanf(nested)]`：合并嵌套 schema 的敏感路径
+- `#[koanf(rename = "...")]`：修改 schema 路径段
+- 当反序列化字段名不同时，同时使用 `#[serde(rename = "...")]`
 
 ### 敏感值脱敏
 
@@ -392,6 +431,7 @@ let config = Config::builder().watched(source).build()?;
 
 | Feature | 默认 | 内容 |
 |---|---|---|
+| `derive` | 是 | 来自 `koanf-derive` 的 `KoanfSchema` derive macro |
 | `json` | 是 | `format::Json` |
 | `toml` | 是 | `format::Toml` |
 | `yaml` | 是 | `format::Yaml` |
@@ -434,6 +474,7 @@ let config = Config::builder().watched(source).build()?;
 
 - `koanf-core`：Value、Path、合并/差异、serde 类型化提取、配置引擎、快照与
   watch 基础设施。
+- `koanf-derive`：`KoanfSchema` derive macro。
 - `koanf-rs`：面向用户的 facade，包含内置源与格式。
 
 扩展作者依赖 `koanf-core`，实现 `Source`、`Format` 或 `Watchable`。
@@ -442,8 +483,7 @@ let config = Config::builder().watched(source).build()?;
 
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
-v1 不包含：其他远程源（S3/etcd）、async 源 watch、derive schema 宏、
-`no_std`/WASM。
+v1 不包含：其他远程源（S3/etcd）、async 源 watch、`no_std`/WASM。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

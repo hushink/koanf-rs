@@ -16,6 +16,7 @@ implementation**, not an official port.
   persistent runtime overrides.
 - Typed access through serde: `deserialize::<T>()`, `get::<T>(path)`, and
   path-scoped `Section` views.
+- Typed schemas with secret-path and validation derives.
 - Immutable, `Arc`-backed snapshots for consistent multi-key reads.
 - File and directory watching with full rebuilds, change sets, and
   last-known-good snapshots.
@@ -201,6 +202,44 @@ let config = Config::builder()
 
 Validators receive an immutable `Snapshot` and must not call mutating methods
 on the same `Config`.
+
+### Typed schemas
+
+The default `derive` feature re-exports `KoanfSchema`. It generates a typed
+`Schema` implementation and collects secret paths from annotated fields:
+
+```rust
+use serde::Deserialize;
+
+#[derive(Deserialize, koanf_rs::KoanfSchema)]
+struct App {
+    port: u16,
+    #[koanf(secret)]
+    token: String,
+    #[koanf(nested)]
+    database: Database,
+}
+
+#[derive(Deserialize, koanf_rs::KoanfSchema)]
+struct Database {
+    host: String,
+    #[koanf(secret)]
+    password: String,
+}
+
+let config = Config::builder()
+    .source(File::new("config.toml"))
+    .redact_schema::<App>()
+    .validate_schema::<App>()
+    .build()?;
+
+let app: App = config.schema()?;
+```
+
+- `#[koanf(secret)]` hides the field from debug output.
+- `#[koanf(nested)]` merges secret paths from a nested schema.
+- `#[koanf(rename = "...")]` changes the schema path segment.
+- Combine with `#[serde(rename = "...")]` when the wire name differs.
 
 ### Redacting secrets
 
@@ -412,6 +451,7 @@ coercion applies when a numeric or boolean target is requested.
 
 | Feature | Default | Enables |
 |---|---|---|
+| `derive` | yes | `KoanfSchema` derive macro from `koanf-derive` |
 | `json` | yes | `format::Json` |
 | `toml` | yes | `format::Toml` |
 | `yaml` | yes | `format::Yaml` |
@@ -457,6 +497,7 @@ extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.
 
 - `koanf-core`: values, paths, merge/diff, typed serde extraction, config
   engine, snapshots, and watch primitives.
+- `koanf-derive`: `KoanfSchema` derive macro.
 - `koanf-rs`: user-facing facade with built-in sources and formats.
 
 Extension authors should depend on `koanf-core` and implement `Source`,
@@ -466,8 +507,8 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
-Not in v1: other remote sources (S3/etcd), async source watching, a derive
-schema macro, or `no_std`/WASM.
+Not in v1: other remote sources (S3/etcd), async source watching, or
+`no_std`/WASM.
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 
