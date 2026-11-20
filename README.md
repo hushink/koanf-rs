@@ -8,8 +8,8 @@ A layered configuration library for Rust, inspired by Go's
 [koanf](https://github.com/knadh/koanf). This is an **independent Rust
 implementation**, not an official port.
 
-- Multiple sources: memory, typed defaults, files, environment variables, CLI
-  arguments, and inline bytes.
+- Multiple sources: memory, typed defaults, files and directories, environment
+  variables, CLI arguments, and inline bytes.
 - Multiple formats: JSON, TOML, and YAML.
 - Layered precedence with deep merge, configurable array/null behavior, and
   persistent runtime overrides.
@@ -120,6 +120,12 @@ fn main() -> Result<()> {
 `Memory` is the in-memory map source and is also available as
 `confmap::ConfMap` for koanf familiarity.
 
+`dir::Dir` loads one directory as a source. Regular files are merged in
+lexicographic filename order, so `10-base.toml` / `20-overrides.toml` style
+names provide deterministic layering within the directory. By default only
+files with an enabled built-in extension are read; `.format(...)` applies one
+explicit format to every regular file instead.
+
 ## Reading values
 
 ```rust
@@ -226,6 +232,7 @@ and emits an event only when the content actually changes.
 | `structs::Structs` | always | Serializes any `serde::Serialize` value; ideal for typed defaults |
 | `bytes::Bytes` | always | Inline bytes with an explicit format |
 | `file::File` | `file` | Single file; format inferred from extension or set explicitly |
+| `dir::Dir` | `file` | Directory of files merged in filename order; non-recursive |
 | `env::Env` | `env` | Prefixed environment variables with `__`-separated paths |
 | `args::Args` | `args` | `--key=value`, `--key value`, and `--flag` forms |
 | `http::Http` | `http` | HTTP(S); conditional GETs, compression, polling watch |
@@ -248,10 +255,10 @@ must be an object.
 | `json` | yes | `format::Json` |
 | `toml` | yes | `format::Toml` |
 | `yaml` | yes | `format::Yaml` |
-| `file` | yes | `file::File` |
+| `file` | yes | `file::File` and `dir::Dir` |
 | `env` | yes | `env::Env` |
 | `args` | yes | `args::Args` |
-| `watch` | yes | File watching via `notify`; implies `file` |
+| `watch` | yes | File and directory watching via `notify`; implies `file` |
 | `async` | no | `Config::watch_stream` / `WatchStream`, runtime-agnostic |
 | `http` | no | `http::Http`, reqwest + rustls; polling watch |
 
@@ -289,7 +296,7 @@ Extension authors should depend on `koanf-core` and implement `Source`,
 
 v0.1 focuses on local sources, three formats, typed access, and file watching.
 
-Not in v1: remote sources (HTTP/S3/etcd/consul/vault), multi-file/glob sources,
+Not in v1: remote sources (HTTP/S3/etcd/consul/vault), glob-pattern sources,
 async adapters, a derive schema macro, validation hooks, render/save APIs,
 `no_std`/WASM, array-index paths, dynamic layer removal, or secret redaction.
 

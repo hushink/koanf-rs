@@ -56,6 +56,8 @@ pub use koanf_core::*;
 pub mod args;
 pub mod bytes;
 pub mod confmap;
+#[cfg(feature = "file")]
+pub mod dir;
 #[cfg(feature = "env")]
 pub mod env;
 #[cfg(feature = "file")]

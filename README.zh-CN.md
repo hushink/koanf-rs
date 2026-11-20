@@ -7,7 +7,7 @@
 受 Go 语言 [koanf](https://github.com/knadh/koanf) 启发的 Rust 分层配置库。
 这是**独立的 Rust 实现**，不是官方移植版本。
 
-- 多配置源：内存、类型化默认值、文件、环境变量、命令行参数、内联字节。
+- 多配置源：内存、类型化默认值、文件与目录、环境变量、命令行参数、内联字节。
 - 多格式：JSON、TOML、YAML。
 - 分层优先级、深度合并、可配置的数组/null 行为、持久的运行时覆盖。
 - 基于 serde 的类型安全读取：`deserialize::<T>()`、`get::<T>(path)`、
@@ -117,6 +117,11 @@ fn main() -> Result<()> {
 `Memory` 是内存 map 源，同时以 `confmap::ConfMap` 名称提供，方便熟悉 koanf
 的用户迁移。
 
+`dir::Dir` 把一个目录作为配置源。目录内的普通文件按文件名字典序合并，因此
+`10-base.toml` / `20-overrides.toml` 这样的命名可以提供确定的目录内分层。
+默认只读取扩展名受支持且对应 feature 已启用的文件；`.format(...)` 会改为对
+所有普通文件应用同一个显式格式。
+
 ## 读取值
 
 ```rust
@@ -222,6 +227,7 @@ let config = Config::builder().watched(source).build()?;
 | `structs::Structs` | 始终可用 | 序列化任意 `serde::Serialize` 值；适合类型化默认值 |
 | `bytes::Bytes` | 始终可用 | 内联字节 + 显式格式 |
 | `file::File` | `file` | 单文件；默认按扩展名推断格式 |
+| `dir::Dir` | `file` | 目录内多文件按文件名字典序合并；非递归 |
 | `env::Env` | `env` | 带前缀的环境变量，`__` 分隔嵌套路径 |
 | `args::Args` | `args` | `--key=value`、`--key value`、`--flag` |
 | `http::Http` | `http` | HTTP(S)；条件请求、压缩、轮询 watch |
@@ -243,10 +249,10 @@ let config = Config::builder().watched(source).build()?;
 | `json` | 是 | `format::Json` |
 | `toml` | 是 | `format::Toml` |
 | `yaml` | 是 | `format::Yaml` |
-| `file` | 是 | `file::File` |
+| `file` | 是 | `file::File` 与 `dir::Dir` |
 | `env` | 是 | `env::Env` |
 | `args` | 是 | `args::Args` |
-| `watch` | 是 | 通过 `notify` 监听文件；隐含 `file` |
+| `watch` | 是 | 通过 `notify` 监听文件与目录；隐含 `file` |
 | `async` | 否 | `Config::watch_stream` / `WatchStream`，运行时无关 |
 | `http` | 否 | `http::Http`，reqwest + rustls；轮询 watch |
 
@@ -281,7 +287,7 @@ let config = Config::builder().watched(source).build()?;
 
 v0.1 聚焦本地源、三种格式、类型化读取与文件监听。
 
-v1 不包含：远程源（HTTP/S3/etcd/consul/vault）、多文件/glob、async 适配、
+v1 不包含：远程源（S3/etcd/consul/vault）、glob 模式源、async 配置源适配、
 derive schema 宏、验证框架、render/save API、`no_std`/WASM、数组索引路径、
 动态层删除、敏感值脱敏。
 

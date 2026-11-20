@@ -373,6 +373,150 @@ mod file_tests {
     }
 }
 
+#[cfg(feature = "file")]
+mod dir_tests {
+    use std::fs;
+
+    use koanf_rs::dir::Dir;
+    use koanf_rs::prelude::*;
+
+    #[cfg(feature = "toml")]
+    #[test]
+    fn merges_files_in_filename_order() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("10-base.toml"),
+            "server.host = \"localhost\"\nserver.port = 80\n",
+        )
+        .unwrap();
+        fs::write(
+            directory.path().join("20-override.toml"),
+            "[server]\nport = 8080\n",
+        )
+        .unwrap();
+        fs::write(directory.path().join("notes.txt"), "not configuration").unwrap();
+
+        let config = Config::builder()
+            .source(Dir::new(directory.path()))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.get::<String>("server.host").unwrap(), "localhost");
+        assert_eq!(config.get::<u16>("server.port").unwrap(), 8080);
+        assert!(!config.contains("notes"));
+    }
+
+    #[test]
+    fn optional_missing_directory_is_an_empty_layer() {
+        let directory = tempfile::tempdir().unwrap();
+        let missing = directory.path().join("missing");
+
+        assert!(
+            Config::builder()
+                .source(Dir::new(missing.clone()))
+                .build()
+                .is_err()
+        );
+
+        let config = Config::builder()
+            .source(Dir::new(missing).optional())
+            .build()
+            .unwrap();
+        assert!(config.snapshot().as_map().is_empty());
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn explicit_format_reads_all_regular_files() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("a.conf"),
+            r#"{"value":1,"untouched":{"enabled":true}}"#,
+        )
+        .unwrap();
+        fs::write(directory.path().join("b.conf"), r#"{"value":2}"#).unwrap();
+
+        let config = Config::builder()
+            .source(Dir::new(directory.path()).format(koanf_rs::format::Json))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.get::<u16>("value").unwrap(), 2);
+        assert!(config.get::<bool>("untouched.enabled").unwrap());
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn merge_options_control_cross_file_merging() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("10-items.json"), r#"{"items":[1]}"#).unwrap();
+        fs::write(directory.path().join("20-items.json"), r#"{"items":[2]}"#).unwrap();
+
+        let config = Config::builder()
+            .source(Dir::new(directory.path()).merge_options(MergeOptions {
+                arrays: ArrayMerge::Append,
+                ..MergeOptions::default()
+            }))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.get::<Vec<u16>>("items").unwrap(), vec![1, 2]);
+    }
+
+    #[cfg(all(feature = "watch", feature = "toml"))]
+    #[test]
+    fn watches_files_added_and_removed() {
+        use std::sync::mpsc::Receiver;
+        use std::time::{Duration, Instant};
+
+        fn recv_matching<F>(receiver: &Receiver<WatchEvent>, predicate: F) -> WatchEvent
+        where
+            F: Fn(&WatchEvent) -> bool,
+        {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                assert!(!remaining.is_zero(), "timed out waiting for watch event");
+                match receiver.recv_timeout(remaining) {
+                    Ok(event) if predicate(&event) => return event,
+                    Ok(_) => {}
+                    Err(error) => panic!("failed waiting for watch event: {error}"),
+                }
+            }
+        }
+
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("10-base.toml"), "value = 1\n").unwrap();
+
+        let config = Config::builder()
+            .watched(Dir::new(directory.path()).debounce(Duration::from_millis(50)))
+            .build()
+            .unwrap();
+        let (guard, receiver) = config.watch_channel().unwrap();
+
+        let extra = directory.path().join("20-extra.toml");
+        fs::write(&extra, "value = 2\n").unwrap();
+        recv_matching(&receiver, |event| {
+            matches!(
+                event,
+                WatchEvent::Changed { snapshot, .. }
+                    if snapshot.get::<u16>("value").ok() == Some(2)
+            )
+        });
+
+        fs::remove_file(&extra).unwrap();
+        recv_matching(&receiver, |event| {
+            matches!(
+                event,
+                WatchEvent::Changed { snapshot, .. }
+                    if snapshot.get::<u16>("value").ok() == Some(1)
+            )
+        });
+
+        drop(guard);
+    }
+}
+
 mod bytes_tests {
     #[cfg(feature = "json")]
     #[test]

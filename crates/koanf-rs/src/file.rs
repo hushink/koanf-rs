@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
 
 use koanf_core::{Error, Format, Map, Result, Source, Value};
@@ -69,26 +69,86 @@ impl File {
         self.debounce = duration;
         self
     }
+}
 
-    fn format_for_read(&self) -> Result<Arc<dyn Format>> {
-        if let Some(format) = &self.format {
-            return Ok(Arc::clone(format));
+pub(crate) fn known_extension(path: &StdPath) -> bool {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("json") if cfg!(feature = "json") => true,
+        Some("toml") if cfg!(feature = "toml") => true,
+        Some("yaml" | "yml") if cfg!(feature = "yaml") => true,
+        _ => false,
+    }
+}
+
+pub(crate) fn format_for_path(
+    path: &StdPath,
+    explicit: Option<&Arc<dyn Format>>,
+) -> Result<Arc<dyn Format>> {
+    if let Some(format) = explicit {
+        return Ok(Arc::clone(format));
+    }
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+        .unwrap_or_default();
+    match extension.as_str() {
+        "json" => json_format(),
+        "toml" => toml_format(),
+        "yaml" | "yml" => yaml_format(),
+        _ => Err(Error::UnknownFormat {
+            path: path.to_path_buf(),
+            extension,
+        }),
+    }
+}
+
+pub(crate) fn read_file(
+    path: &StdPath,
+    explicit_format: Option<&Arc<dyn Format>>,
+    optional: bool,
+) -> Result<Map> {
+    let data = match fs::read(path) {
+        Ok(data) => data,
+        Err(error) if error.kind() == io::ErrorKind::NotFound && optional => {
+            return Ok(Map::new());
         }
-        let extension = self
-            .path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .map(|extension| extension.to_ascii_lowercase())
-            .unwrap_or_default();
-        match extension.as_str() {
-            "json" => json_format(),
-            "toml" => toml_format(),
-            "yaml" | "yml" => yaml_format(),
-            _ => Err(Error::UnknownFormat {
-                path: self.path.clone(),
-                extension,
-            }),
+        Err(error) => {
+            return Err(Error::Io {
+                path: path.to_path_buf(),
+                source: error,
+            });
         }
+    };
+    let data = strip_bom(&data);
+    let format = format_for_path(path, explicit_format)?;
+    let value = match format.parse(data) {
+        Ok(value) => value,
+        Err(Error::Format {
+            format,
+            path: None,
+            source,
+        }) => {
+            return Err(Error::Format {
+                format,
+                path: Some(path.to_path_buf()),
+                source,
+            });
+        }
+        Err(error) => return Err(error),
+    };
+    let actual = value.type_name();
+    match value {
+        Value::Map(map) => Ok(map),
+        _ => Err(Error::InvalidRoot {
+            source: format!("file:{}", path.display()),
+            actual,
+        }),
     }
 }
 
@@ -137,48 +197,12 @@ impl Source for File {
     }
 
     fn read(&self) -> Result<Map> {
-        let data = match fs::read(&self.path) {
-            Ok(data) => data,
-            Err(error) if error.kind() == io::ErrorKind::NotFound && self.optional => {
-                return Ok(Map::new());
-            }
-            Err(error) => {
-                return Err(Error::Io {
-                    path: self.path.clone(),
-                    source: error,
-                });
-            }
-        };
-        let data = strip_bom(&data);
-        let format = self.format_for_read()?;
-        let value = match format.parse(data) {
-            Ok(value) => value,
-            Err(Error::Format {
-                format,
-                path: None,
-                source,
-            }) => {
-                return Err(Error::Format {
-                    format,
-                    path: Some(self.path.clone()),
-                    source,
-                });
-            }
-            Err(error) => return Err(error),
-        };
-        let actual = value.type_name();
-        match value {
-            Value::Map(map) => Ok(map),
-            _ => Err(Error::InvalidRoot {
-                source: self.name.clone(),
-                actual,
-            }),
-        }
+        read_file(&self.path, self.format.as_ref(), self.optional)
     }
 }
 
 #[cfg(feature = "watch")]
-fn watch_error(message: impl Into<String>, error: notify::Error) -> Error {
+pub(crate) fn watch_error(message: impl Into<String>, error: notify::Error) -> Error {
     Error::Watch {
         message: message.into(),
         source: Some(Box::new(error)),
@@ -186,19 +210,27 @@ fn watch_error(message: impl Into<String>, error: notify::Error) -> Error {
 }
 
 #[cfg(feature = "watch")]
-struct FileWatchSubscription {
-    debouncer: Mutex<
-        Option<
-            notify_debouncer_full::Debouncer<
-                notify::RecommendedWatcher,
-                notify_debouncer_full::RecommendedCache,
-            >,
-        >,
-    >,
+pub(crate) type NotifyDebouncer = notify_debouncer_full::Debouncer<
+    notify::RecommendedWatcher,
+    notify_debouncer_full::RecommendedCache,
+>;
+
+#[cfg(feature = "watch")]
+pub(crate) struct NotifyWatchSubscription {
+    debouncer: Mutex<Option<NotifyDebouncer>>,
 }
 
 #[cfg(feature = "watch")]
-impl WatchSubscription for FileWatchSubscription {
+impl NotifyWatchSubscription {
+    pub(crate) fn new(debouncer: NotifyDebouncer) -> Self {
+        Self {
+            debouncer: Mutex::new(Some(debouncer)),
+        }
+    }
+}
+
+#[cfg(feature = "watch")]
+impl WatchSubscription for NotifyWatchSubscription {
     fn stop(self: Box<Self>) {
         let mut guard = self
             .debouncer
@@ -263,8 +295,6 @@ impl Watchable for File {
                 watch_error(format!("failed to watch `{}`", watch_root.display()), error)
             })?;
 
-        Ok(Box::new(FileWatchSubscription {
-            debouncer: Mutex::new(Some(debouncer)),
-        }))
+        Ok(Box::new(NotifyWatchSubscription::new(debouncer)))
     }
 }

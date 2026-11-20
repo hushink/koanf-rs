@@ -12,6 +12,11 @@ help: the following other types implement trait `Watchable`
   | impl Watchable for Http {
   | ^^^^^^^^^^^^^^^^^^^^^^^ `Http`
   |
+ ::: src/dir.rs
+  |
+  | impl Watchable for Dir {
+  | ^^^^^^^^^^^^^^^^^^^^^^ `koanf_rs::dir::Dir`
+  |
  ::: src/file.rs
   |
   | impl Watchable for File {

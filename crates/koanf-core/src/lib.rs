@@ -33,7 +33,7 @@ mod watch;
 pub use config::{Config, ConfigBuilder, Section, Snapshot};
 pub use diff::{Change, ChangeKind, ChangeSet};
 pub use error::{Error, Result};
-pub use merge::{ArrayMerge, MergeOptions, NullMerge};
+pub use merge::{ArrayMerge, MergeOptions, NullMerge, merge_map};
 pub use path::{IntoPath, Path};
 pub use source::{Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable};
 pub use value::{Coercion, Map, Value};
