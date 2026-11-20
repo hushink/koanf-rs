@@ -23,7 +23,10 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Test before publishing
-        run: cargo test --workspace --all-features
+        # The compile-fail doctest still runs; the trybuild UI test is skipped
+        # here because its expected stderr is compiler/platform-sensitive and
+        # is already exercised by the CI workflow.
+        run: cargo test --workspace --all-features -- --skip watched_requires_watchable
       - name: Run release-plz
         uses: release-plz/action@1fb72a9583c3601c197b3bd6fc6ce50d58e28ef3 # v0.5.148
         with:
