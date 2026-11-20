@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - optional atomic save helpers via the `atomic-save` feature
 - snapshot and section rendering through the `Format` trait, including save
   helpers
+- `no_std` support with `alloc` when default features are disabled; watch,
+  save, and tracing remain `std`-only, and `Map` uses a deterministic FNV-1a
+  hasher without `std`
 
 ### Fixed
 

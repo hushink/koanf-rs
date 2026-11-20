@@ -23,6 +23,7 @@
 - 运行时无关的异步源加载：`AsyncSource`、`build_async`。
 - 可选的原子文件保存。
 - 编译期约束：只有 `Watchable` 源才能注册到 watch 流程。
+- `no_std` 核心（带 `alloc`）支持裸机目标；完整 facade 支持 WebAssembly。
 - 可扩展的 `Source` / `Format` / `Watchable` trait。
 - 库自身不使用 `unsafe`。
 
@@ -479,11 +480,35 @@ let config = Config::builder().watched(source).build()?;
 
 扩展作者依赖 `koanf-core`，实现 `Source`、`Format` 或 `Watchable`。
 
+## `no_std` 与 WebAssembly
+
+`koanf-core` 支持带 `alloc` 的 `no_std` 目标。关闭默认 feature 即可：
+
+```toml
+[dependencies]
+koanf-core = { version = "0.1", default-features = false }
+```
+
+该模式下可用：Value/Path 模型、分层合并、diff、快照、serde 类型化读取、
+运行时覆盖与同步配置引擎。watch、保存与 `tracing` 需要默认的 `std` feature。
+由于 `IndexMap` 在无 `std` 时必须显式指定 hasher，`Map` 会使用确定性的
+FNV-1a hasher；请用 `Map::default()` 而不是 `Map::new()` 创建空 map。
+
+`koanf-rs` facade 面向 `std`，可直接为 `wasm32-unknown-unknown` 构建：
+
+```bash
+cargo check -p koanf-rs --target wasm32-unknown-unknown
+```
+
+在浏览器环境中，请只启用运行时确实可用的源与格式；文件系统、环境变量、
+命令行和原生 HTTP 源在浏览器里不可用。
+
 ## 状态
 
 v0.1 聚焦分层源、多种格式、类型化读取与监听。
 
-v1 不包含：其他远程源（S3/etcd）、async 源 watch、`no_std`/WASM。
+v1 不包含：其他远程源（S3/etcd）、async 源 watch，以及 `koanf-rs` facade 的
+`no_std` 支持（其文件系统、环境变量、命令行与 HTTP 源都依赖 `std`）。
 
 发布流程使用 release-plz 自动化，见 [RELEASING.md](RELEASING.md)。
 

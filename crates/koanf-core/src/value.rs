@@ -1,6 +1,12 @@
 //! Dynamically typed configuration values.
 
-use std::fmt;
+use alloc::borrow::ToOwned;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use core::fmt;
+#[cfg(not(feature = "std"))]
+use core::hash::BuildHasherDefault;
 
 use indexmap::IndexMap;
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
@@ -8,11 +14,64 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{Error, Result};
 
+/// Hasher used by [`Map`] when the `std` feature is disabled.
+///
+/// This is a deterministic FNV-1a hasher. It is only part of the public API so
+/// that the [`Map`] alias can name it; construct maps with [`Map::default`].
+#[cfg(not(feature = "std"))]
+#[derive(Clone, Copy, Debug)]
+pub struct FnvHasher(u64);
+
+#[cfg(not(feature = "std"))]
+impl Default for FnvHasher {
+    fn default() -> Self {
+        Self(0xcbf2_9ce4_8422_2325)
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl core::hash::Hasher for FnvHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.0 ^= u64::from(*byte);
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+}
+
 /// Ordered map used for configuration objects.
 ///
 /// Insertion order is preserved. Later inserts of an existing key keep the
 /// original position and replace the value.
+///
+/// With the default `std` feature the map uses `std::hash::RandomState`.
+/// Without `std` it uses a deterministic FNV-1a hasher, so use
+/// [`Map::default`] instead of `Map::new` on `no_std` targets.
+#[cfg(feature = "std")]
 pub type Map = IndexMap<String, Value>;
+
+/// Ordered map used for configuration objects.
+///
+/// Insertion order is preserved. Later inserts of an existing key keep the
+/// original position and replace the value.
+///
+/// With the default `std` feature the map uses `std::hash::RandomState`.
+/// Without `std` it uses a deterministic FNV-1a hasher, so use
+/// [`Map::default`] instead of `Map::new` on `no_std` targets.
+#[cfg(not(feature = "std"))]
+pub type Map = IndexMap<String, Value, BuildHasherDefault<FnvHasher>>;
+
+pub(crate) fn new_map() -> Map {
+    Map::default()
+}
+
+pub(crate) fn map_with_capacity(capacity: usize) -> Map {
+    Map::with_capacity_and_hasher(capacity, Default::default())
+}
 
 /// How string values are treated when deserializing into typed values.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -317,7 +376,7 @@ where
 }
 
 impl Serialize for Value {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -335,7 +394,7 @@ impl Serialize for Value {
 }
 
 impl<'de> Deserialize<'de> for Value {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -352,49 +411,49 @@ impl<'de> Visitor<'de> for ValueVisitor {
         formatter.write_str("a configuration value")
     }
 
-    fn visit_bool<E>(self, value: bool) -> std::result::Result<Self::Value, E> {
+    fn visit_bool<E>(self, value: bool) -> core::result::Result<Self::Value, E> {
         Ok(Value::Bool(value))
     }
 
-    fn visit_i64<E>(self, value: i64) -> std::result::Result<Self::Value, E> {
+    fn visit_i64<E>(self, value: i64) -> core::result::Result<Self::Value, E> {
         Ok(Value::Int(value))
     }
 
-    fn visit_i128<E>(self, value: i128) -> std::result::Result<Self::Value, E>
+    fn visit_i128<E>(self, value: i128) -> core::result::Result<Self::Value, E>
     where
         E: de::Error,
     {
         Value::canonical_i128(value).map_err(E::custom)
     }
 
-    fn visit_u64<E>(self, value: u64) -> std::result::Result<Self::Value, E> {
+    fn visit_u64<E>(self, value: u64) -> core::result::Result<Self::Value, E> {
         Ok(Value::canonical_uint(value))
     }
 
-    fn visit_u128<E>(self, value: u128) -> std::result::Result<Self::Value, E>
+    fn visit_u128<E>(self, value: u128) -> core::result::Result<Self::Value, E>
     where
         E: de::Error,
     {
         Value::canonical_u128(value).map_err(E::custom)
     }
 
-    fn visit_f64<E>(self, value: f64) -> std::result::Result<Self::Value, E> {
+    fn visit_f64<E>(self, value: f64) -> core::result::Result<Self::Value, E> {
         Ok(Value::Float(value))
     }
 
-    fn visit_char<E>(self, value: char) -> std::result::Result<Self::Value, E> {
+    fn visit_char<E>(self, value: char) -> core::result::Result<Self::Value, E> {
         Ok(Value::String(value.to_string()))
     }
 
-    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E> {
+    fn visit_str<E>(self, value: &str) -> core::result::Result<Self::Value, E> {
         Ok(Value::String(value.to_owned()))
     }
 
-    fn visit_string<E>(self, value: String) -> std::result::Result<Self::Value, E> {
+    fn visit_string<E>(self, value: String) -> core::result::Result<Self::Value, E> {
         Ok(Value::String(value))
     }
 
-    fn visit_bytes<E>(self, value: &[u8]) -> std::result::Result<Self::Value, E> {
+    fn visit_bytes<E>(self, value: &[u8]) -> core::result::Result<Self::Value, E> {
         Ok(Value::Array(
             value
                 .iter()
@@ -403,7 +462,7 @@ impl<'de> Visitor<'de> for ValueVisitor {
         ))
     }
 
-    fn visit_byte_buf<E>(self, value: Vec<u8>) -> std::result::Result<Self::Value, E> {
+    fn visit_byte_buf<E>(self, value: Vec<u8>) -> core::result::Result<Self::Value, E> {
         Ok(Value::Array(
             value
                 .into_iter()
@@ -412,29 +471,29 @@ impl<'de> Visitor<'de> for ValueVisitor {
         ))
     }
 
-    fn visit_none<E>(self) -> std::result::Result<Self::Value, E> {
+    fn visit_none<E>(self) -> core::result::Result<Self::Value, E> {
         Ok(Value::Null)
     }
 
-    fn visit_some<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    fn visit_some<D>(self, deserializer: D) -> core::result::Result<Self::Value, D::Error>
     where
         D: Deserializer<'de>,
     {
         Deserialize::deserialize(deserializer)
     }
 
-    fn visit_unit<E>(self) -> std::result::Result<Self::Value, E> {
+    fn visit_unit<E>(self) -> core::result::Result<Self::Value, E> {
         Ok(Value::Null)
     }
 
-    fn visit_newtype_struct<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+    fn visit_newtype_struct<D>(self, deserializer: D) -> core::result::Result<Self::Value, D::Error>
     where
         D: Deserializer<'de>,
     {
         Deserialize::deserialize(deserializer)
     }
 
-    fn visit_seq<A>(self, mut sequence: A) -> std::result::Result<Self::Value, A::Error>
+    fn visit_seq<A>(self, mut sequence: A) -> core::result::Result<Self::Value, A::Error>
     where
         A: SeqAccess<'de>,
     {
@@ -445,11 +504,11 @@ impl<'de> Visitor<'de> for ValueVisitor {
         Ok(Value::Array(values))
     }
 
-    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    fn visit_map<A>(self, mut map: A) -> core::result::Result<Self::Value, A::Error>
     where
         A: MapAccess<'de>,
     {
-        let mut values = Map::with_capacity(map.size_hint().unwrap_or(0));
+        let mut values = map_with_capacity(map.size_hint().unwrap_or(0));
         while let Some((key, value)) = map.next_entry::<String, Value>()? {
             values.insert(key, value);
         }
@@ -460,6 +519,7 @@ impl<'de> Visitor<'de> for ValueVisitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn canonicalizes_small_uints_to_int() {

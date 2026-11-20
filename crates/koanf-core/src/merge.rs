@@ -98,6 +98,9 @@ fn merge_value(base: &mut Value, overlay: Value, options: &MergeOptions) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::borrow::ToOwned;
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     fn map(entries: impl IntoIterator<Item = (&'static str, Value)>) -> Map {
         entries

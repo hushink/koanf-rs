@@ -39,5 +39,7 @@ Initial release.
 - Snapshot and section rendering back to JSON, TOML, and YAML, plus rendered
   file saves that leave the target untouched on format errors.
 - `Source`, `Format`, and `Watchable` extension traits.
+- `no_std` support in `koanf-core` (with `alloc`), verified on
+  `thumbv7em-none-eabihf`, and WebAssembly builds for the `koanf-rs` facade.
 - Feature-gated facade with `koanf-core` as the extension-facing engine.
 - Bilingual README, examples, CI, and Apache-2.0 licensing.

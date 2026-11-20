@@ -1,7 +1,8 @@
 //! Snapshot change sets.
 
-use std::fmt;
-use std::sync::Arc;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::fmt;
 
 use crate::path::Path;
 use crate::redact::redact_at;
@@ -68,7 +69,7 @@ impl ChangeSet {
     }
 
     /// Iterates over the changes.
-    pub fn iter(&self) -> std::slice::Iter<'_, Change> {
+    pub fn iter(&self) -> core::slice::Iter<'_, Change> {
         self.changes.iter()
     }
 
@@ -142,7 +143,7 @@ impl fmt::Debug for RedactedChange<'_> {
 
 impl<'a> IntoIterator for &'a ChangeSet {
     type Item = &'a Change;
-    type IntoIter = std::slice::Iter<'a, Change>;
+    type IntoIter = core::slice::Iter<'a, Change>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -189,6 +190,9 @@ fn diff_value(old: &Value, new: &Value, path: &Path, changes: &mut Vec<Change>) 
 mod tests {
     use super::*;
     use crate::value::Map;
+    use alloc::borrow::ToOwned;
+    use alloc::string::ToString;
+    use alloc::vec;
 
     fn map(entries: impl IntoIterator<Item = (&'static str, Value)>) -> Value {
         Value::Map(

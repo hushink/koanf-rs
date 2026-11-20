@@ -1,13 +1,30 @@
 //! Layered configuration, immutable snapshots, sections, and watch dispatch.
 
-use std::fmt;
+use alloc::borrow::ToOwned;
+#[cfg(feature = "std")]
+use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::sync::Arc;
+#[cfg(feature = "std")]
+use alloc::sync::Weak;
+use alloc::vec::Vec;
+use core::fmt;
+#[cfg(not(feature = "std"))]
+use spin::{Mutex, RwLock};
+#[cfg(feature = "std")]
 use std::fs;
-#[cfg(feature = "atomic-save")]
+#[cfg(all(feature = "std", feature = "atomic-save"))]
 use std::io::Write;
+#[cfg(feature = "std")]
 use std::panic::{AssertUnwindSafe, catch_unwind};
+#[cfg(feature = "std")]
 use std::path::Path as StdPath;
+#[cfg(feature = "std")]
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak};
+#[cfg(feature = "std")]
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+#[cfg(feature = "std")]
 use std::thread;
 
 use serde::de::DeserializeOwned;
@@ -18,13 +35,14 @@ use crate::error::{Error, Result};
 use crate::merge::{MergeOptions, merge_map};
 use crate::path::{IntoPath, Path};
 use crate::schema::Schema;
-use crate::source::{
-    AsyncSource, Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable,
-};
-use crate::value::{Coercion, Map, Value};
+use crate::source::{AsyncSource, Format, Source};
+#[cfg(feature = "std")]
+use crate::source::{WatchCallback, WatchSignal, WatchSubscription, Watchable};
+use crate::value::{Coercion, Map, Value, new_map};
+#[cfg(feature = "std")]
 use crate::watch::{WatchEvent, WatchGuard};
 
-#[cfg(feature = "async")]
+#[cfg(all(feature = "std", feature = "async"))]
 use crate::watch::WatchStream;
 
 #[cfg(feature = "tracing")]
@@ -54,6 +72,7 @@ macro_rules! log_warn {
 #[derive(Clone)]
 struct Layer {
     source: Arc<dyn Source>,
+    #[cfg(feature = "std")]
     watchable: Option<Arc<dyn Watchable>>,
 }
 
@@ -64,10 +83,12 @@ impl Layer {
     {
         Self {
             source: Arc::new(source),
+            #[cfg(feature = "std")]
             watchable: None,
         }
     }
 
+    #[cfg(feature = "std")]
     fn watched<W>(source: W) -> Self
     where
         W: Watchable + 'static,
@@ -284,6 +305,7 @@ impl Snapshot {
     /// Rendering completes before the file is touched, so format errors leave
     /// the target unchanged. The write itself uses [`std::fs::write`], which
     /// creates or truncates the target.
+    #[cfg(feature = "std")]
     pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
         save_value(path.as_ref(), &self.inner.value, format)
     }
@@ -444,6 +466,7 @@ impl Section {
     /// Rendering completes before the file is touched, so format errors leave
     /// the target unchanged. The write itself uses [`std::fs::write`], which
     /// creates or truncates the target.
+    #[cfg(feature = "std")]
     pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
         save_value(path.as_ref(), self.as_value(), format)
     }
@@ -503,7 +526,7 @@ impl ConfigBuilder {
 
     /// Appends a plain source layer.
     ///
-    /// Later layers have higher priority. Use [`Self::watched`] for sources
+    /// Later layers have higher priority. Use `ConfigBuilder::watched` for sources
     /// that should participate in file watching.
     pub fn source<S>(mut self, source: S) -> Self
     where
@@ -553,6 +576,7 @@ impl ConfigBuilder {
     ///
     /// let _ = Config::builder().watched(NotWatchable);
     /// ```
+    #[cfg(feature = "std")]
     pub fn watched<W>(mut self, source: W) -> Self
     where
         W: Watchable + 'static,
@@ -577,7 +601,7 @@ impl ConfigBuilder {
     ///
     /// Values at the path, and values below it, are replaced with `"***"` in
     /// `Debug` output for [`Config`], [`Snapshot`], [`Section`], and
-    /// [`ChangeSet`]/[`WatchEvent`] values. Reads, rendering, saving, and
+    /// [`ChangeSet`]/`WatchEvent` values. Reads, rendering, saving, and
     /// iteration over the original [`Change`](crate::Change) values are
     /// unaffected.
     ///
@@ -616,7 +640,7 @@ impl ConfigBuilder {
     /// Validation runs during construction, `reload`, source loading/removal,
     /// runtime overrides, and watch-triggered rebuilds. A rejected snapshot is
     /// never committed; watch-triggered failures are reported as
-    /// [`WatchEvent::Error`] while the last good snapshot remains visible.
+    /// `WatchEvent::Error` while the last good snapshot remains visible.
     ///
     /// The validator receives an immutable [`Snapshot`] and must not call
     /// mutating methods on the same `Config` (doing so would deadlock).
@@ -703,7 +727,7 @@ fn build_from_layers(
 ) -> Result<Config> {
     log_debug!(layers = layers.len(), "building configuration");
     let sources_value = load_sources(&layers, &merge)?;
-    let overlay = Map::new();
+    let overlay = new_map();
     let merged = apply_overlay(&sources_value, &overlay, &merge)?;
     let snapshot = Snapshot::from_parts(merged, coercion, Arc::from(redactions));
     if let Some(validation) = &validation
@@ -813,6 +837,7 @@ impl Config {
     /// Renders the current snapshot and writes it to `path`.
     ///
     /// See [`Snapshot::save`] for the write semantics.
+    #[cfg(feature = "std")]
     pub fn save(&self, path: impl AsRef<StdPath>, format: &dyn Format) -> Result<()> {
         self.snapshot().save(path, format)
     }
@@ -837,6 +862,7 @@ impl Config {
     ///
     /// If watch subscriptions are active, the new source's watcher is started
     /// before the layer is committed.
+    #[cfg(feature = "std")]
     pub fn load_watched<W>(&self, source: W) -> Result<()>
     where
         W: Watchable + 'static,
@@ -918,6 +944,7 @@ impl Config {
     /// is caught so it cannot kill the watcher. Keep the returned guard alive
     /// for as long as the subscription is needed; dropping it unregisters the
     /// callback.
+    #[cfg(feature = "std")]
     pub fn watch<F>(&self, callback: F) -> Result<WatchGuard>
     where
         F: Fn(WatchEvent) + Send + Sync + 'static,
@@ -935,6 +962,7 @@ impl Config {
     /// alive for as long as the subscription is needed; dropping it stops the
     /// subscription. Dropping the receiver stops delivery (the sender is
     /// removed on the next event).
+    #[cfg(feature = "std")]
     pub fn watch_channel(&self) -> Result<(WatchGuard, Receiver<WatchEvent>)> {
         let (sender, receiver) = mpsc::channel();
         let id = self
@@ -949,7 +977,7 @@ impl Config {
     /// runtime-agnostic; drive it with any executor, or call
     /// [`WatchStream::recv`] directly. Keep the guard alive for as long as the
     /// subscription is needed.
-    #[cfg(feature = "async")]
+    #[cfg(all(feature = "std", feature = "async"))]
     pub fn watch_stream(&self) -> Result<(WatchGuard, WatchStream)> {
         let (sender, receiver) = futures_channel::mpsc::unbounded();
         let id = self
@@ -980,6 +1008,7 @@ struct State {
     coercion: Coercion,
 }
 
+#[cfg(feature = "std")]
 enum DispatchCommand {
     SourceChanged,
     SourceError(Error),
@@ -987,12 +1016,16 @@ enum DispatchCommand {
     Shutdown,
 }
 
+#[cfg(feature = "std")]
 type WatchCallbackEntry = (u64, Arc<dyn Fn(WatchEvent) + Send + Sync>);
+#[cfg(feature = "std")]
 type WatchChannelEntry = (u64, Sender<WatchEvent>);
-#[cfg(feature = "async")]
+#[cfg(all(feature = "std", feature = "async"))]
 type AsyncWatchChannelEntry = (u64, futures_channel::mpsc::UnboundedSender<WatchEvent>);
+#[cfg(feature = "std")]
 type WatchedSubscription = (Arc<dyn Watchable>, Box<dyn WatchSubscription>);
 
+#[cfg(feature = "std")]
 struct WatchState {
     next_id: u64,
     callbacks: Vec<WatchCallbackEntry>,
@@ -1003,6 +1036,7 @@ struct WatchState {
     dispatcher: Option<Sender<DispatchCommand>>,
 }
 
+#[cfg(feature = "std")]
 impl Default for WatchState {
     fn default() -> Self {
         Self {
@@ -1017,6 +1051,7 @@ impl Default for WatchState {
     }
 }
 
+#[cfg(feature = "std")]
 impl WatchState {
     fn is_empty(&self) -> bool {
         self.callbacks.is_empty() && self.channels.is_empty() && {
@@ -1035,6 +1070,7 @@ impl WatchState {
 pub(crate) struct ConfigInner {
     state: RwLock<State>,
     write_lock: Mutex<()>,
+    #[cfg(feature = "std")]
     watch: Mutex<WatchState>,
     validation: Option<Validator>,
     redactions: Arc<[Path]>,
@@ -1061,6 +1097,7 @@ impl ConfigInner {
                 coercion,
             }),
             write_lock: Mutex::new(()),
+            #[cfg(feature = "std")]
             watch: Mutex::new(WatchState::default()),
             validation,
             redactions,
@@ -1077,24 +1114,43 @@ impl ConfigInner {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn read_state(&self) -> RwLockReadGuard<'_, State> {
         self.state
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    #[cfg(not(feature = "std"))]
+    fn read_state(&self) -> spin::RwLockReadGuard<'_, State> {
+        self.state.read()
+    }
+
+    #[cfg(feature = "std")]
     fn write_state(&self) -> RwLockWriteGuard<'_, State> {
         self.state
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    #[cfg(not(feature = "std"))]
+    fn write_state(&self) -> spin::RwLockWriteGuard<'_, State> {
+        self.state.write()
+    }
+
+    #[cfg(feature = "std")]
     fn lock_write(&self) -> MutexGuard<'_, ()> {
         self.write_lock
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    #[cfg(not(feature = "std"))]
+    fn lock_write(&self) -> spin::MutexGuard<'_, ()> {
+        self.write_lock.lock()
+    }
+
+    #[cfg(feature = "std")]
     fn lock_watch(&self) -> MutexGuard<'_, WatchState> {
         self.watch
             .lock()
@@ -1124,8 +1180,11 @@ impl ConfigInner {
         let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
 
+        #[cfg(feature = "std")]
         let mut watch = self.lock_watch();
+        #[cfg(feature = "std")]
         let mut new_subscription = None;
+        #[cfg(feature = "std")]
         if let Some(watchable) = layers
             .last()
             .and_then(|layer| layer.watchable.as_ref())
@@ -1136,6 +1195,7 @@ impl ConfigInner {
             let subscription = watchable.watch(callback)?;
             new_subscription = Some((watchable, subscription));
         }
+        #[cfg(feature = "std")]
         if let Some(subscription) = new_subscription {
             watch.subscriptions.push(subscription);
         }
@@ -1152,15 +1212,20 @@ impl ConfigInner {
             state.snapshot = new_snapshot.clone();
         }
 
-        let changes = old.diff(&new_snapshot);
-        if !changes.is_empty()
-            && let Some(sender) = &watch.dispatcher
+        #[cfg(feature = "std")]
         {
-            let _ = sender.send(DispatchCommand::Emit(WatchEvent::Changed {
-                snapshot: new_snapshot,
-                changes,
-            }));
+            let changes = old.diff(&new_snapshot);
+            if !changes.is_empty()
+                && let Some(sender) = &watch.dispatcher
+            {
+                let _ = sender.send(DispatchCommand::Emit(WatchEvent::Changed {
+                    snapshot: new_snapshot,
+                    changes,
+                }));
+            }
         }
+        #[cfg(not(feature = "std"))]
+        let _ = &old;
         Ok(())
     }
 
@@ -1178,11 +1243,13 @@ impl ConfigInner {
         };
 
         let mut kept = Vec::with_capacity(layers.len());
+        #[cfg(feature = "std")]
         let mut removed_watchables = Vec::new();
         let mut removed = 0;
         for layer in layers {
             if layer.source.name() == name {
                 removed += 1;
+                #[cfg(feature = "std")]
                 if let Some(watchable) = &layer.watchable {
                     removed_watchables.push(Arc::clone(watchable));
                 }
@@ -1199,7 +1266,9 @@ impl ConfigInner {
         let new_snapshot = Snapshot::from_parts(merged, coercion, Arc::clone(&self.redactions));
         self.validate(&new_snapshot)?;
 
+        #[cfg(feature = "std")]
         let mut watch = self.lock_watch();
+        #[cfg(feature = "std")]
         stop_watch_subscriptions(&mut watch, &removed_watchables);
         {
             let mut state = self.write_state();
@@ -1208,15 +1277,20 @@ impl ConfigInner {
             state.snapshot = new_snapshot.clone();
         }
 
-        let changes = old.diff(&new_snapshot);
-        if !changes.is_empty()
-            && let Some(sender) = &watch.dispatcher
+        #[cfg(feature = "std")]
         {
-            let _ = sender.send(DispatchCommand::Emit(WatchEvent::Changed {
-                snapshot: new_snapshot,
-                changes,
-            }));
+            let changes = old.diff(&new_snapshot);
+            if !changes.is_empty()
+                && let Some(sender) = &watch.dispatcher
+            {
+                let _ = sender.send(DispatchCommand::Emit(WatchEvent::Changed {
+                    snapshot: new_snapshot,
+                    changes,
+                }));
+            }
         }
+        #[cfg(not(feature = "std"))]
+        let _ = &old;
         log_debug!(source = %name, removed, "removed source layers");
         Ok(removed)
     }
@@ -1301,6 +1375,7 @@ impl ConfigInner {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn emit_changed(&self, old: Snapshot, new: Snapshot) {
         let changes = old.diff(&new);
         if changes.is_empty() {
@@ -1316,6 +1391,10 @@ impl ConfigInner {
         }
     }
 
+    #[cfg(not(feature = "std"))]
+    fn emit_changed(&self, _old: Snapshot, _new: Snapshot) {}
+
+    #[cfg(feature = "std")]
     pub(crate) fn reload_for_watch(&self) -> Result<Option<(Snapshot, ChangeSet)>> {
         let _write_guard = self.lock_write();
         let (layers, overlay, merge, coercion, old) = {
@@ -1346,6 +1425,7 @@ impl ConfigInner {
         }
     }
 
+    #[cfg(feature = "std")]
     fn add_callback(
         &self,
         inner: Weak<Self>,
@@ -1368,6 +1448,7 @@ impl ConfigInner {
         Ok(id)
     }
 
+    #[cfg(feature = "std")]
     fn add_channel(&self, inner: Weak<Self>, sender: Sender<WatchEvent>) -> Result<u64> {
         let _write_guard = self.lock_write();
         let mut watch = self.lock_watch();
@@ -1382,7 +1463,7 @@ impl ConfigInner {
         Ok(id)
     }
 
-    #[cfg(feature = "async")]
+    #[cfg(all(feature = "std", feature = "async"))]
     fn add_async_channel(
         &self,
         inner: Weak<Self>,
@@ -1403,6 +1484,7 @@ impl ConfigInner {
         Ok(id)
     }
 
+    #[cfg(feature = "std")]
     fn ensure_watching(&self, watch: &mut WatchState, inner: Weak<Self>) -> Result<()> {
         if watch.dispatcher.is_some() {
             return Ok(());
@@ -1442,6 +1524,7 @@ impl ConfigInner {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     pub(crate) fn remove_subscription(&self, id: u64) {
         let mut watch = self.lock_watch();
         watch
@@ -1463,6 +1546,7 @@ impl ConfigInner {
         }
     }
 
+    #[cfg(feature = "std")]
     fn broadcast(&self, event: WatchEvent) {
         let (callbacks, channels) = {
             let watch = self.lock_watch();
@@ -1533,6 +1617,7 @@ impl ConfigInner {
     }
 }
 
+#[cfg(feature = "std")]
 fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>) {
     while let Ok(command) = receiver.recv() {
         let Some(inner) = inner.upgrade() else {
@@ -1563,6 +1648,7 @@ fn dispatcher_loop(inner: Weak<ConfigInner>, receiver: Receiver<DispatchCommand>
     }
 }
 
+#[cfg(feature = "std")]
 fn watch_callback(sender: Sender<DispatchCommand>) -> WatchCallback {
     Arc::new(move |signal| {
         let command = match signal {
@@ -1573,6 +1659,7 @@ fn watch_callback(sender: Sender<DispatchCommand>) -> WatchCallback {
     })
 }
 
+#[cfg(feature = "std")]
 fn save_value(path: &StdPath, value: &Value, format: &dyn Format) -> Result<()> {
     let bytes = format.render(value)?;
     fs::write(path, bytes).map_err(|source| Error::Io {
@@ -1610,6 +1697,7 @@ fn save_value_atomic(path: &StdPath, value: &Value, format: &dyn Format) -> Resu
     Ok(())
 }
 
+#[cfg(feature = "std")]
 fn stop_watch_subscriptions(watch: &mut WatchState, removed: &[Arc<dyn Watchable>]) {
     let mut kept = Vec::with_capacity(watch.subscriptions.len());
     for (watchable, subscription) in watch.subscriptions.drain(..) {
@@ -1626,7 +1714,7 @@ fn stop_watch_subscriptions(watch: &mut WatchState, removed: &[Arc<dyn Watchable
 }
 
 fn load_sources(layers: &[Layer], merge: &MergeOptions) -> Result<Value> {
-    let mut map = Map::new();
+    let mut map = new_map();
     for layer in layers {
         let source_map = layer.source.read()?;
         merge_map(&mut map, source_map, merge);
@@ -1697,7 +1785,7 @@ fn insert_path(map: &mut Map, segments: &[String], value: Value, full: &str) -> 
     }
     let entry = map
         .entry(first.clone())
-        .or_insert_with(|| Value::Map(Map::new()));
+        .or_insert_with(|| Value::Map(new_map()));
     match entry {
         Value::Map(child) => insert_path(child, rest, value, full),
         other => Err(Error::InvalidPath {

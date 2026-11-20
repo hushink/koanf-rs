@@ -1,12 +1,15 @@
 //! Error types for `koanf-core`.
 
-use std::fmt;
+use alloc::boxed::Box;
+use alloc::string::String;
+use core::fmt;
+#[cfg(feature = "std")]
 use std::path::PathBuf;
 
 use crate::path::Path;
 
 /// Result type used throughout the crate.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Errors produced while loading, merging, watching, or reading configuration.
 ///
@@ -20,18 +23,19 @@ pub enum Error {
         /// Source name.
         name: String,
         /// Underlying error.
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: Box<dyn core::error::Error + Send + Sync>,
     },
     /// A format failed to parse bytes.
     Format {
         /// Format name, for example `"json"`.
         format: String,
-        /// File path when the bytes came from a file.
-        path: Option<PathBuf>,
+        /// Display path when the bytes came from a file or URL.
+        path: Option<String>,
         /// Underlying error.
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: Box<dyn core::error::Error + Send + Sync>,
     },
     /// An I/O operation failed.
+    #[cfg(feature = "std")]
     Io {
         /// Path involved in the failure.
         path: PathBuf,
@@ -106,7 +110,7 @@ pub enum Error {
         /// Format name, for example `"json"`.
         format: String,
         /// Underlying error.
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: Box<dyn core::error::Error + Send + Sync>,
     },
     /// A runtime override path was invalid.
     InvalidPath {
@@ -116,6 +120,7 @@ pub enum Error {
         reason: String,
     },
     /// A file extension did not map to a known format.
+    #[cfg(feature = "std")]
     UnknownFormat {
         /// File path.
         path: PathBuf,
@@ -145,7 +150,7 @@ pub enum Error {
         /// Error message.
         message: String,
         /// Optional underlying error.
-        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        source: Option<Box<dyn core::error::Error + Send + Sync>>,
     },
     /// An operation is not supported for a format or feature combination.
     Unsupported {
@@ -160,7 +165,7 @@ impl Error {
     /// Creates an [`Error::Source`] with a boxed underlying error.
     pub fn source_error(
         name: impl Into<String>,
-        source: impl std::error::Error + Send + Sync + 'static,
+        source: impl core::error::Error + Send + Sync + 'static,
     ) -> Self {
         Self::Source {
             name: name.into(),
@@ -171,8 +176,8 @@ impl Error {
     /// Creates an [`Error::Format`] with a boxed underlying error.
     pub fn format_error(
         format: impl Into<String>,
-        path: Option<PathBuf>,
-        source: impl std::error::Error + Send + Sync + 'static,
+        path: Option<String>,
+        source: impl core::error::Error + Send + Sync + 'static,
     ) -> Self {
         Self::Format {
             format: format.into(),
@@ -184,7 +189,7 @@ impl Error {
     /// Creates an [`Error::Render`] with a boxed underlying error.
     pub fn render_error(
         format: impl Into<String>,
-        source: impl std::error::Error + Send + Sync + 'static,
+        source: impl core::error::Error + Send + Sync + 'static,
     ) -> Self {
         Self::Render {
             format: format.into(),
@@ -213,10 +218,11 @@ impl fmt::Display for Error {
             } => {
                 write!(f, "failed to parse format `{format}`")?;
                 if let Some(path) = path {
-                    write!(f, " at `{}`", path.display())?;
+                    write!(f, " at `{path}`")?;
                 }
                 write!(f, ": {source}")
             }
+            #[cfg(feature = "std")]
             Self::Io { path, source } => {
                 write!(f, "I/O error at `{}`: {source}", path.display())
             }
@@ -272,6 +278,7 @@ impl fmt::Display for Error {
             Self::InvalidPath { input, reason } => {
                 write!(f, "invalid path `{input}`: {reason}")
             }
+            #[cfg(feature = "std")]
             Self::UnknownFormat { path, extension } => {
                 if extension.is_empty() {
                     write!(f, "unknown configuration format for `{}`", path.display())
@@ -313,12 +320,13 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Source { source, .. } => Some(source.as_ref()),
             Self::Format { source, .. } => Some(source.as_ref()),
             Self::Render { source, .. } => Some(source.as_ref()),
+            #[cfg(feature = "std")]
             Self::Io { source, .. } => Some(source),
             Self::Watch {
                 source: Some(source),

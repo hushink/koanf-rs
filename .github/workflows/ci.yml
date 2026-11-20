@@ -34,6 +34,23 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
+  targets:
+    name: no_std and wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf, wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p koanf-core --no-default-features
+      - run: cargo check -p koanf-core --no-default-features --target thumbv7em-none-eabihf
+      - run: cargo check -p koanf-core --no-default-features --target wasm32-unknown-unknown
+      - run: cargo check -p koanf-rs --target wasm32-unknown-unknown
+      - run: cargo doc -p koanf-core --no-default-features --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
   msrv:
     name: MSRV 1.92
     runs-on: ubuntu-latest

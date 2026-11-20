@@ -27,6 +27,8 @@ implementation**, not an official port.
 - Runtime-agnostic async source loading via `AsyncSource` and `build_async`.
 - Optional atomic file saves for rendered configuration.
 - Compile-time enforcement that only `Watchable` sources can be watched.
+- `no_std` core (with `alloc`) for bare-metal targets, plus WebAssembly support
+  for the full facade.
 - Extension traits for custom sources, formats, and watch backends.
 - The library crates forbid `unsafe` code.
 
@@ -503,12 +505,41 @@ extension traits live in `koanf-core`; the `koanf-rs` facade re-exports them.
 Extension authors should depend on `koanf-core` and implement `Source`,
 `Format`, or `Watchable`.
 
+## `no_std` and WebAssembly
+
+`koanf-core` supports `no_std` targets with `alloc`. Disable its default
+features:
+
+```toml
+[dependencies]
+koanf-core = { version = "0.1", default-features = false }
+```
+
+In this mode the value/path model, layered merge, diff, snapshots, typed serde
+access, runtime overrides, and synchronous configuration engine are available.
+Watching, saving, and `tracing` require the default `std` feature. Because
+`IndexMap` needs an explicit hasher without `std`, `Map` uses a deterministic
+FNV-1a hasher; construct empty maps with `Map::default()` instead of
+`Map::new()`.
+
+The `koanf-rs` facade targets `std` and builds for
+`wasm32-unknown-unknown`:
+
+```bash
+cargo check -p koanf-rs --target wasm32-unknown-unknown
+```
+
+In browser builds, select only the sources and formats that make sense at
+runtime; filesystem, environment, CLI, and native HTTP sources are not
+available in the browser.
+
 ## Status
 
 v0.1 focuses on layered sources, multiple formats, typed access, and watching.
 
-Not in v1: other remote sources (S3/etcd), async source watching, or
-`no_std`/WASM.
+Not in v1: other remote sources (S3/etcd), async source watching, or `no_std`
+support in the `koanf-rs` facade (its local filesystem, environment, argument,
+and HTTP sources require `std`).
 
 Releases are automated with release-plz; see [RELEASING.md](RELEASING.md).
 

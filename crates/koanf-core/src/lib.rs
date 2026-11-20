@@ -12,12 +12,24 @@
 //! 2. Read values through a [`Snapshot`] or the convenience methods on
 //!    [`Config`].
 //! 3. Optionally register watch callbacks or channels and receive
-//!    [`WatchEvent`] values when sources change.
+//!    `WatchEvent` values when sources change (requires the `std` feature).
+//!
+//! # Features
+//!
+//! The default `std` feature enables filesystem saves, watch dispatch, and
+//! `tracing`. Build with `default-features = false` for `no_std` targets with
+//! `alloc`; the value model, paths, merging, diffing, snapshots, typed serde
+//! access, runtime overrides, and the synchronous configuration engine remain
+//! available. Without `std`, [`Map`] uses a deterministic FNV-1a hasher, so
+//! construct empty maps with [`Map::default`].
 //!
 //! [`koanf_rs`]: https://crates.io/crates/koanf-rs
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
 
 mod config;
 mod de;
@@ -30,6 +42,7 @@ mod schema;
 mod ser;
 mod source;
 mod value;
+#[cfg(feature = "std")]
 mod watch;
 
 pub use config::{Config, ConfigBuilder, Section, Snapshot};
@@ -42,8 +55,9 @@ pub use source::{
     AsyncSource, Format, Source, WatchCallback, WatchSignal, WatchSubscription, Watchable,
 };
 pub use value::{Coercion, Map, Value};
-#[cfg(feature = "async")]
+#[cfg(all(feature = "std", feature = "async"))]
 pub use watch::WatchStream;
+#[cfg(feature = "std")]
 pub use watch::{WatchEvent, WatchGuard};
 
 /// Re-export of the ordered map type used by [`Map`].

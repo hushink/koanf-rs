@@ -3,13 +3,14 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.dependencies]
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 serde_path_to_error = "0.1"
-indexmap = { version = "2", features = ["serde"] }
+indexmap = { version = "2", default-features = false, features = ["serde"] }
 proc-macro2 = "1"
 proc-macro-crate = "3"
 quote = "1"
+spin = "0.9"
 syn = { version = "2", features = ["full"] }
 toml = { version = "1.2", features = ["preserve_order"] }
 serde_yaml_ng = "0.10"

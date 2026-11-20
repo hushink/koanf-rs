@@ -2,15 +2,21 @@ use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::Sender;
+#[cfg(feature = "std")]
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "std")]
 use std::thread;
+#[cfg(feature = "std")]
 use std::time::Duration;
 
 use koanf_core::{
     ArrayMerge, AsyncSource, ChangeKind, Config, Error, MergeOptions, NullMerge, Path, Result,
-    Source, Value, WatchCallback, WatchEvent, WatchSignal, WatchSubscription, Watchable,
+    Source, Value,
 };
+#[cfg(feature = "std")]
+use koanf_core::{WatchCallback, WatchEvent, WatchSignal, WatchSubscription, Watchable};
 use serde::Deserialize;
 
 fn map(entries: impl IntoIterator<Item = (&'static str, Value)>) -> koanf_core::Map {
@@ -383,6 +389,7 @@ fn removes_named_sources_and_retains_overrides() {
     assert_eq!(config.remove_source("missing").unwrap(), 0);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn removing_a_watched_source_stops_its_watcher() {
     let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
@@ -450,11 +457,16 @@ fn debug_output_redacts_configured_paths() {
     assert!(!changes_debug.contains("new-secret"));
     assert!(!changes_debug.contains("super-secret"));
 
-    let event = WatchEvent::Changed {
-        snapshot: after,
-        changes,
-    };
-    assert!(!format!("{event:?}").contains("new-secret"));
+    #[cfg(feature = "std")]
+    {
+        let event = WatchEvent::Changed {
+            snapshot: after,
+            changes,
+        };
+        assert!(!format!("{event:?}").contains("new-secret"));
+    }
+    #[cfg(not(feature = "std"))]
+    let _ = (after, changes);
 
     let prefix = Config::builder()
         .source(StaticSource::new(map([(
@@ -508,6 +520,7 @@ fn validation_rejects_build_and_keeps_last_good_snapshot() {
     assert_eq!(config.get::<u16>("port").unwrap(), 1);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn validation_errors_are_reported_by_watch() {
     let (source, trigger) = TriggerSource::new(map([("port", Value::from(1))]));
@@ -538,6 +551,7 @@ fn validation_errors_are_reported_by_watch() {
     drop(guard);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn failed_reload_and_load_keep_the_previous_snapshot() {
     let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
@@ -603,6 +617,7 @@ fn snapshot_diff_reports_changes() {
     }));
 }
 
+#[cfg_attr(not(feature = "std"), allow(dead_code))]
 #[derive(Clone)]
 struct TriggerSource {
     map: Arc<Mutex<koanf_core::Map>>,
@@ -610,6 +625,7 @@ struct TriggerSource {
     fail: Arc<AtomicBool>,
 }
 
+#[cfg_attr(not(feature = "std"), allow(dead_code))]
 #[derive(Clone)]
 struct TriggerHandle {
     map: Arc<Mutex<koanf_core::Map>>,
@@ -633,6 +649,7 @@ impl TriggerSource {
     }
 }
 
+#[cfg_attr(not(feature = "std"), allow(dead_code))]
 impl TriggerHandle {
     fn set(&self, key: &str, value: Value) {
         self.map.lock().unwrap().insert(key.to_owned(), value);
@@ -668,6 +685,7 @@ impl Source for TriggerSource {
     }
 }
 
+#[cfg(feature = "std")]
 impl Watchable for TriggerSource {
     fn watch(&self, callback: WatchCallback) -> Result<Box<dyn WatchSubscription>> {
         let (sender, receiver) = mpsc::channel::<()>();
@@ -690,11 +708,13 @@ impl Watchable for TriggerSource {
     }
 }
 
+#[cfg(feature = "std")]
 struct TriggerSubscription {
     stop: Arc<AtomicBool>,
     handle: Mutex<Option<thread::JoinHandle<()>>>,
 }
 
+#[cfg(feature = "std")]
 impl WatchSubscription for TriggerSubscription {
     fn stop(self: Box<Self>) {
         self.stop.store(true, Ordering::SeqCst);
@@ -709,12 +729,14 @@ impl WatchSubscription for TriggerSubscription {
     }
 }
 
+#[cfg(feature = "std")]
 fn recv_event(receiver: &Receiver<WatchEvent>) -> WatchEvent {
     receiver
         .recv_timeout(Duration::from_secs(2))
         .expect("timed out waiting for watch event")
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn watch_delivers_changes_and_errors() {
     let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
@@ -754,6 +776,7 @@ fn watch_delivers_changes_and_errors() {
     drop(guard);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn watch_requires_watchable_sources() {
     let config = Config::builder()
@@ -766,6 +789,7 @@ fn watch_requires_watchable_sources() {
     ));
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn manual_updates_emit_watch_events() {
     let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
@@ -800,6 +824,7 @@ fn manual_updates_emit_watch_events() {
     drop(guard);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn load_watched_starts_a_watcher_for_the_new_layer() {
     let (first, _first_trigger) = TriggerSource::new(map([("first", Value::from(1))]));
@@ -830,6 +855,7 @@ fn load_watched_starts_a_watcher_for_the_new_layer() {
     drop(guard);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn watch_restarts_after_last_guard_is_dropped() {
     let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));
@@ -857,6 +883,7 @@ fn watch_restarts_after_last_guard_is_dropped() {
 }
 
 #[cfg(feature = "async")]
+#[cfg(feature = "std")]
 #[test]
 fn watch_stream_delivers_events() {
     use futures_executor::block_on;
@@ -888,6 +915,7 @@ fn watch_stream_delivers_events() {
     drop(guard);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn watch_callback_sees_events() {
     let (source, trigger) = TriggerSource::new(map([("value", Value::from(1))]));

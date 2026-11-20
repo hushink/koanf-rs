@@ -167,7 +167,7 @@ pub(crate) fn read_file(
         }) => {
             return Err(Error::Format {
                 format,
-                path: Some(path.to_path_buf()),
+                path: Some(path.display().to_string()),
                 source,
             });
         }

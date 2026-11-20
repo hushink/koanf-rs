@@ -1,6 +1,10 @@
 //! Deserialization from a [`Value`] tree with optional scalar coercion.
 
-use std::fmt;
+use alloc::borrow::ToOwned;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use core::fmt;
 
 use serde::de::value::BorrowedStrDeserializer;
 use serde::de::{
@@ -21,7 +25,7 @@ where
     T: DeserializeOwned,
 {
     let deserializer = ValueDeserializer { value, coercion };
-    let result: std::result::Result<T, serde_path_to_error::Error<DeError>> =
+    let result: core::result::Result<T, serde_path_to_error::Error<DeError>> =
         serde_path_to_error::deserialize(deserializer);
     result.map_err(|error| map_error(error, path))
 }
@@ -85,7 +89,7 @@ impl fmt::Display for DeError {
     }
 }
 
-impl std::error::Error for DeError {}
+impl core::error::Error for DeError {}
 
 impl de::Error for DeError {
     fn custom<T>(message: T) -> Self
@@ -576,7 +580,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
 }
 
 struct SeqAccessImpl<'de> {
-    iter: std::slice::Iter<'de, Value>,
+    iter: core::slice::Iter<'de, Value>,
     coercion: Coercion,
 }
 

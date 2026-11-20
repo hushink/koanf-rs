@@ -1,6 +1,9 @@
 //! Serialization of Rust values into a [`Value`] tree.
 
-use std::fmt;
+use alloc::borrow::ToOwned;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use core::fmt;
 
 use serde::ser::{
     self, Impossible, Serialize, SerializeMap, SerializeSeq, SerializeStruct,
@@ -10,7 +13,7 @@ use serde::ser::{
 
 use crate::Error;
 use crate::error::Result;
-use crate::value::{Map, Value};
+use crate::value::{Map, Value, map_with_capacity, new_map};
 
 pub(crate) fn to_value<T>(value: &T) -> Result<Value>
 where
@@ -32,7 +35,7 @@ impl fmt::Display for SerError {
     }
 }
 
-impl std::error::Error for SerError {}
+impl core::error::Error for SerError {}
 
 impl ser::Error for SerError {
     fn custom<T>(message: T) -> Self
@@ -178,7 +181,7 @@ impl Serializer for ValueSerializer {
     where
         T: Serialize + ?Sized,
     {
-        let mut map = Map::new();
+        let mut map = new_map();
         map.insert(variant.to_owned(), value.serialize(self)?);
         Ok(Value::Map(map))
     }
@@ -214,7 +217,7 @@ impl Serializer for ValueSerializer {
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
         Ok(MapSerializer {
-            map: Map::with_capacity(len.unwrap_or(0)),
+            map: map_with_capacity(len.unwrap_or(0)),
             key: None,
         })
     }
@@ -225,7 +228,7 @@ impl Serializer for ValueSerializer {
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         Ok(StructSerializer {
-            map: Map::with_capacity(len),
+            map: map_with_capacity(len),
         })
     }
 
@@ -238,7 +241,7 @@ impl Serializer for ValueSerializer {
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         Ok(StructVariantSerializer {
             variant: variant.to_owned(),
-            map: Map::with_capacity(len),
+            map: map_with_capacity(len),
         })
     }
 }
@@ -324,7 +327,7 @@ impl SerializeTupleVariant for TupleVariantSerializer {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        let mut map = Map::new();
+        let mut map = new_map();
         map.insert(self.variant, Value::Array(self.values));
         Ok(Value::Map(map))
     }
@@ -410,7 +413,7 @@ impl SerializeStructVariant for StructVariantSerializer {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        let mut map = Map::new();
+        let mut map = new_map();
         map.insert(self.variant, Value::Map(self.map));
         Ok(Value::Map(map))
     }

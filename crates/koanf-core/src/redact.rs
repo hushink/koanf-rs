@@ -1,5 +1,8 @@
 //! Best-effort value redaction for debug output.
 
+use alloc::borrow::ToOwned;
+use alloc::string::ToString;
+
 use crate::path::Path;
 use crate::value::Value;
 

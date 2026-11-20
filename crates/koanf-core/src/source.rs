@@ -1,8 +1,11 @@
 //! Extension traits for configuration sources, formats, and watchers.
 
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::future::Future;
+use core::pin::Pin;
 
 use crate::error::{Error, Result};
 use crate::value::{Map, Value};

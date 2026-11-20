@@ -254,7 +254,7 @@ impl Http {
             }) => {
                 return Err(Error::Format {
                     format,
-                    path: Some(PathBuf::from(self.url.as_str())),
+                    path: Some(self.url.to_string()),
                     source,
                 });
             }

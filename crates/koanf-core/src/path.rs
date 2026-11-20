@@ -8,7 +8,11 @@
 //! array, so `"servers.0.port"` indexes the first server. A numeric key inside
 //! an object is still an ordinary object key.
 
-use std::fmt;
+use alloc::borrow::ToOwned;
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::fmt;
 
 /// A configuration key path made of zero or more string segments.
 ///
@@ -176,6 +180,7 @@ impl<const N: usize> IntoPath for [String; N] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
 
     #[test]
     fn parses_and_displays() {

@@ -1,5 +1,8 @@
 //! Typed configuration schemas.
 
+use alloc::string::String;
+use alloc::vec::Vec;
+
 use serde::de::DeserializeOwned;
 
 /// A typed configuration schema.
